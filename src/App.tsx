@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ProductConfig, Lead, AppTab, IntentClassification } from './types';
-import { DEFAULT_CONFIG, generateMockLeads, generateOutreachMessage, simulateSimulatedResponses, parseCSVLeads, SAMPLE_CSV_DATA } from './utils/mockData';
+import { DEFAULT_CONFIG, parseCSVLeads, SAMPLE_CSV_DATA, simulateSimulatedResponses } from './utils/mockData';
+import { generateMarketplaceLeads } from './lib/marketplaceLeadGenerator';
 import { ProductConfigForm } from './components/ProductConfigForm';
 import { LeadFilters } from './components/LeadFilters';
 import { LeadTable } from './components/LeadTable';
@@ -13,7 +14,7 @@ import { Bot, Settings, Users, Sparkles, MessageSquareReply, BarChart3, ChevronR
 
 export default function App() {
   const [config, setConfig] = useState<ProductConfig>(DEFAULT_CONFIG);
-  const [leads, setLeads] = useState<Lead[]>(() => generateMockLeads(DEFAULT_CONFIG));
+  const [leads, setLeads] = useState<Lead[]>(() => generateMarketplaceLeads(DEFAULT_CONFIG));
   const [activeTab, setActiveTab] = useState<AppTab>('config');
   const [isTourOpen, setIsTourOpen] = useState<boolean>(false);
 
@@ -25,7 +26,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const handleGenerateNewLeads = () => {
-    const newLeads = generateMockLeads(config);
+    const newLeads = generateMarketplaceLeads(config);
     setLeads(newLeads);
     setActiveTab('leads');
   };
@@ -40,7 +41,7 @@ export default function App() {
 
   const handleLoadTestConfig = () => {
     setConfig(DEFAULT_CONFIG);
-    const mockAndCsv = generateMockLeads(DEFAULT_CONFIG);
+    const mockAndCsv = generateMarketplaceLeads(DEFAULT_CONFIG);
     setLeads(mockAndCsv);
     setActiveTab('leads');
   };
