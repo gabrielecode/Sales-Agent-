@@ -21,6 +21,26 @@ export interface SendEmailParams {
   replyTo?: string;
 }
 
+/**
+ * Test function using Resend API snippet requested by user.
+ * Remember to replace 're_xxxxxxxxx' with your real API key.
+ */
+export async function sendTestResendEmail(apiKey: string) {
+  const resend = new Resend(apiKey || 're_xxxxxxxxx');
+
+  try {
+    const data = await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: 'sale.autoagent@gmail.com',
+      subject: 'Hello World',
+      html: '<p>Congrats on sending your <strong>first email</strong>!</p>'
+    });
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function sendOutreachEmail(params: SendEmailParams) {
   const client = getResendClient();
   const fromName = params.fromName || process.env.EMAIL_FROM_NAME || 'Sales Agent';
