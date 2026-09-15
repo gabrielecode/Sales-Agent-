@@ -44,10 +44,10 @@ const TOUR_STEPS = [
     tip: "I lead da CSV si uniscono ai lead mock per darti una copertura di outreach omnicanale."
   },
   {
-    title: "5. Outreach AI & Dashboard ROI",
-    icon: BarChart3,
-    color: "text-indigo-400 bg-indigo-950 border-indigo-800",
-    description: "Genera messaggi con OpenRouter (o con il simulatore intelligente), inviali con follow-up programmati e traccia le risposte e il fatturato chiuso nella dashboard finale.",
+    title: "5. Outreach AI & Invio Resend (Reale o Mock)",
+    icon: Send,
+    color: "text-sky-400 bg-sky-950 border-sky-800",
+    description: "Genera messaggi con OpenRouter, inviali con follow-up programmati tramite Resend (in modalità reale se configuri la chiave, o in modalità mock di test) e traccia le risposte e il fatturato chiuso nella dashboard.",
     tip: "Clicca su 'Carica Dati di Esempio' per testare subito l'intera applicazione!"
   }
 ];

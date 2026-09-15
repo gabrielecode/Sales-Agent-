@@ -115,6 +115,36 @@ export const InstructionsPage: React.FC<InstructionsPageProps> = ({ onStartTour,
           </ul>
         </div>
 
+        {/* Step 3.5: Resend Email Integration */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="w-10 h-10 rounded-xl bg-sky-950 text-sky-400 flex items-center justify-center border border-sky-800/80 font-bold">
+            3.5
+          </div>
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Send className="w-5 h-5 text-sky-400" />
+            Invio Email con Resend (Reale o Mock)
+          </h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            L'app integra <strong>Resend</strong> per l'invio di email transazionali reali. 
+          </p>
+          <ul className="space-y-2 text-xs text-slate-300">
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+              <span><strong>Modalità Mock:</strong> Se manca <code>RESEND_API_KEY</code>, l'app simula l'invio, registrando i log a console senza inviare email reali.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+              <span><strong>Modalità Reale:</strong> Impostando <code>RESEND_API_KEY</code> e verificando il tuo dominio su Resend, le email partono realmente verso i tuoi lead.</span>
+            </li>
+          </ul>
+          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
+            <div className="text-slate-200 font-semibold">Configurazione Variabili (.env):</div>
+            <div><code>RESEND_API_KEY=re_...</code></div>
+            <div><code>EMAIL_FROM_NAME="Sales Agent"</code></div>
+            <div><code>EMAIL_FROM_ADDRESS="noreply@tuodominio.ch"</code></div>
+          </div>
+        </div>
+
         {/* Step 4: Pipeline & ROI */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
           <div className="w-10 h-10 rounded-xl bg-purple-950 text-purple-400 flex items-center justify-center border border-purple-800/80 font-bold">

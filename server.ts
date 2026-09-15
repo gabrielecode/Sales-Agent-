@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { sendOutreachEmail } from "./src/lib/resendClient";
 
 dotenv.config();
 
@@ -10,6 +11,30 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // API Route for sending outreach email via Resend (with mock fallback)
+  app.post("/api/send-outreach-email", async (req, res) => {
+    try {
+      const { to, subject, body, fromName, fromAddress, replyTo } = req.body;
+      if (!to || !subject || !body) {
+        return res.status(400).json({ success: false, error: "Campi obbligatori mancanti: to, subject, body" });
+      }
+
+      const result = await sendOutreachEmail({
+        to,
+        subject,
+        body,
+        fromName,
+        fromAddress,
+        replyTo,
+      });
+
+      return res.json(result);
+    } catch (error: any) {
+      console.error("Send email API error:", error);
+      return res.status(500).json({ success: false, error: error.message || "Errore interno server" });
+    }
+  });
 
   // API Route for OpenRouter message generation
   app.post("/api/generate-message", async (req, res) => {
