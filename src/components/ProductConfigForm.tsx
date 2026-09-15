@@ -159,10 +159,10 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           <div>
             <h1 className="text-2xl font-bold text-white flex items-center gap-2">
               <Settings className="w-6 h-6 text-indigo-400" />
-              Product & Offer Configuration
+              Configurazione Prodotto & Offerta
             </h1>
             <p className="text-slate-400 text-sm mt-1">
-              Configure your offer and target audience. The autonomous agent will use these parameters to discover and qualify leads.
+              Configura la tua offerta e il target. L'agente autonomo userà questi parametri per scoprire e qualificare i lead.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -172,7 +172,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg border border-slate-700 transition flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4 text-amber-400" />
-              Load Demo Preset
+              Carica Preset Demo
             </button>
             <button
               type="button"
@@ -180,7 +180,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-2"
             >
               <Globe className="w-4 h-4" />
-              {leadsCount > 0 ? 'Refresh Leads' : 'Generate Leads Now'}
+              {leadsCount > 0 ? 'Aggiorna Lead' : 'Genera Lead Ora'}
             </button>
           </div>
         </div>
@@ -189,14 +189,14 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           {savedSuccess && (
             <div className="bg-emerald-950/50 border border-emerald-800/50 text-emerald-300 px-4 py-3 rounded-lg flex items-center gap-2 text-sm animate-fade-in">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
-              Configuration saved successfully! Ready for lead discovery.
+              Configurazione salvata con successo! Pronto per la scoperta lead.
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Product / Landing Page URL <span className="text-rose-400">*</span>
+                URL Prodotto / Landing Page <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -215,7 +215,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Product Name <span className="text-rose-400">*</span>
+                Nome Prodotto <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -226,7 +226,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                   required
                   value={formData.productName}
                   onChange={(e) => handleChange('productName', e.target.value)}
-                  placeholder="e.g., ListingBoost AI"
+                  placeholder="es., ListingBoost AI"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
                 />
               </div>
@@ -235,21 +235,21 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Brief Offer Description (1-2 sentences) <span className="text-rose-400">*</span>
+              Breve Descrizione Offerta (1-2 frasi) <span className="text-rose-400">*</span>
             </label>
             <textarea
               required
               rows={2}
               value={formData.productDescription}
               onChange={(e) => handleChange('productDescription', e.target.value)}
-              placeholder="e.g., AI-powered listing optimizer and SEO tool that boosts marketplace conversion rates by up to 34%."
+              placeholder="es., Tool di ottimizzazione e SEO potenziato da IA che aumenta le conversioni sui marketplace del 34%."
               className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Offer Type
+              Tipo di Offerta
             </label>
             <select
               value={formData.offerType}
@@ -268,7 +268,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
               <Target className="w-4 h-4 text-indigo-400" />
-              Target Categories (Select at least one)
+              Categorie Target (Seleziona almeno una)
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {ALL_TARGETS.map((target) => {
@@ -298,7 +298,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
               <Layers className="w-4 h-4 text-indigo-400" />
-              Outreach Channels
+              Canali di Outreach
             </label>
             <div className="flex flex-wrap gap-2">
               {ALL_PLATFORMS.map((platform) => {
@@ -326,7 +326,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
                 <Languages className="w-4 h-4 text-indigo-400" />
-                Target Languages
+                Lingue Target
               </label>
               <div className="flex gap-2">
                 {ALL_LANGUAGES.map((lang) => {
@@ -353,7 +353,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-indigo-400" />
-                  Min Lead Score
+                  Score Minimo Lead
                 </span>
                 <span className="text-indigo-400 font-bold">{formData.minLeadScore}</span>
               </label>
@@ -366,22 +366,22 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                 onChange={(e) => handleChange('minLeadScore', Number(e.target.value))}
                 className="w-full accent-indigo-500 bg-slate-950 cursor-pointer h-2 rounded-lg"
               />
-              <span className="text-xs text-slate-500 mt-1 block">Leads below this score are unselected by default</span>
+              <span className="text-xs text-slate-500 mt-1 block">I lead sotto questo punteggio non sono selezionati</span>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Max Leads / Session
+                Max Lead / Sessione
               </label>
               <select
                 value={formData.maxLeadsPerSession}
                 onChange={(e) => handleChange('maxLeadsPerSession', Number(e.target.value))}
                 className="w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-indigo-500 text-sm"
               >
-                <option value={15}>15 leads</option>
-                <option value={25}>25 leads (Recommended)</option>
-                <option value={50}>50 leads</option>
-                <option value={100}>100 leads</option>
+                <option value={15}>15 lead</option>
+                <option value={25}>25 lead (Consigliato)</option>
+                <option value={50}>50 lead</option>
+                <option value={100}>100 lead</option>
               </select>
             </div>
           </div>
@@ -392,13 +392,13 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               onClick={handleLoadDemo}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg border border-slate-700 transition text-xs"
             >
-              Reset to Demo Config
+              Ripristina Demo
             </button>
             <button
               type="submit"
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg shadow-lg shadow-indigo-600/20 transition text-sm"
             >
-              Save Configuration
+              Salva Configurazione
             </button>
           </div>
         </form>
