@@ -1,112 +1,75 @@
-export type OfferType = 
-  | 'Direct Sale (Subscription / License)' 
-  | 'Done-For-You Service based on product' 
-  | 'Programma di affiliazione (Seeking partners)' 
-  | 'Vendita lead ad agenzie/affiliati';
+export type Platform = 'Etsy' | 'Amazon KDP' | 'Shopify' | 'Instagram' | 'Web' | 'LinkedIn';
+export type Language = 'it' | 'en' | 'de' | 'fr';
+export type OfferType = 'affiliate' | 'sponsorship' | 'digital_product' | 'collab' | 'software';
+export type TargetCategory = 'creators' | 'ecommerce' | 'authors' | 'influencers' | 'b2b' | 'handmade';
+export type IntentClassification = 'interested' | 'info_requested' | 'not_interested' | 'ready_to_close';
 
-export type TargetCategory = 
-  | 'Etsy sellers' 
-  | 'Amazon KDP authors' 
-  | 'eBay sellers' 
-  | 'Shopify store owners' 
-  | 'SaaS founders' 
-  | 'eCommerce owners' 
-  | 'Creator / influencer' 
-  | 'Marketing agencies' 
-  | 'Aziende svizzere (da CSV)'
-  | 'Others';
-
-export type Platform = 
-  | 'Etsy' 
-  | 'Amazon KDP' 
-  | 'eBay' 
-  | 'Shopify' 
-  | 'Reddit' 
-  | 'Facebook' 
-  | 'LinkedIn' 
-  | 'X' 
-  | 'Blog' 
-  | 'Newsletter'
-  | 'Email (da CSV)'
-  | 'Swiss Company';
-
-export type Language = 'en' | 'de' | 'it' | 'fr';
+export type AppTab = 'config' | 'leads' | 'outreach' | 'responses' | 'dashboard' | 'instructions';
 
 export interface ProductConfig {
-  productUrl: string;
   productName: string;
   productDescription: string;
+  targetAudience: string;
   offerType: OfferType;
-  targetCategories: TargetCategory[];
-  channels: Platform[];
-  targetLanguages: Language[];
+  commissionRate: string;
+  targetCategory: TargetCategory;
+  platforms: Platform[];
+  languages: Language[];
   minLeadScore: number;
-  maxLeadsPerSession: number;
-  leadSourceMode: 'mock' | 'csv' | 'both';
+  autoOutreach: boolean;
+  dailyOutreachLimit: number;
+  openRouterApiKey?: string;
+  openRouterModel?: string;
+  resendApiKey?: string;
+  emailFromAddress?: string;
 }
 
 export interface BusinessSignals {
   numProducts: number;
   numReviews: number;
   monthsActive: number;
-  estimatedRevenue: string; // e.g., "$3,400/mo"
+  estimatedRevenue: string;
 }
 
-export type LeadStatus = 
-  | 'discovered' 
-  | 'selected' 
-  | 'contacted' 
-  | 'awaiting_reply' 
-  | 'replied' 
-  | 'in_negotiation' 
-  | 'won' 
-  | 'not_interested';
+export interface LeadMessage {
+  subject: string;
+  body: string;
+  generatedAt?: string;
+  sentAt?: string;
+  followUpScheduled?: string;
+}
 
-export type IntentClassification = 'Interested' | 'Needs Nurturing' | 'Not Interested';
+export interface LeadResponse {
+  text: string;
+  receivedAt: string;
+  intent: IntentClassification;
+}
+
+export interface LeadOpportunity {
+  stage: 'Discovered' | 'Contacted' | 'In Negotiation' | 'Won' | 'Lost';
+  actionTaken: string;
+  revenueValue: number;
+  closedAt?: string;
+}
 
 export interface Lead {
   id: string;
-  source: 'mock' | 'csv';
+  shopName: string;
+  shopUrl: string;
   platform: Platform;
-  shopName: string; // company name for CSV
-  shopUrl: string; // website for CSV
+  language: Language;
   email?: string;
   city?: string;
   canton?: string;
   industry?: string;
-  language: Language;
   businessSignals: BusinessSignals;
   hasNeedSignal: boolean;
   shortNotes: string;
   leadScore: number;
-  scoreBreakdown: {
-    productScore: number;
-    reviewScore: number;
-    tenureScore: number;
-    needScore: number;
-    keywordScore: number;
-  };
-  status: LeadStatus;
+  source: 'auto' | 'csv' | 'custom';
+  status: 'discovered' | 'contacted' | 'awaiting_reply' | 'replied' | 'in_negotiation' | 'won' | 'lost';
   selected: boolean;
-  message?: {
-    subject: string;
-    body: string;
-    generatedAt: string;
-    sentAt?: string;
-    followUpScheduled?: string;
-  };
-  response?: {
-    text: string;
-    receivedAt: string;
-    intent: IntentClassification;
-  };
-  opportunity?: {
-    actionTaken?: string;
-    stage: 'In Negotiation' | 'Won' | 'Closed Lost';
-    revenueValue: number;
-    closedAt?: string;
-  };
+  message?: LeadMessage;
+  response?: LeadResponse;
+  opportunity?: LeadOpportunity;
 }
-
-export type AppTab = 'config' | 'leads' | 'outreach' | 'responses' | 'dashboard' | 'instructions';
-

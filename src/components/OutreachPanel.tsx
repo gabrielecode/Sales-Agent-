@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Lead, ProductConfig } from '../types';
-import { callOpenRouter } from '../lib/openrouter';
-import { Sparkles, Send, CheckCircle2, Mail, Clock, MessageSquare, Key, ShieldCheck, AlertCircle } from 'lucide-react';
+import { generateOutreachMessageWithAI } from '../lib/openrouter';
+import { sendOutreachEmail } from '../lib/resendClient';
+import { Sparkles, Send, CheckCircle2, RefreshCw, AlertCircle, Mail, Edit3 } from 'lucide-react';
 
 interface OutreachPanelProps {
   leads: Lead[];
@@ -17,238 +18,189 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
   onSendMessages,
 }) => {
   const selectedLeads = leads.filter((l) => l.selected);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeLeadIndex, setActiveLeadIndex] = useState<number>(0);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [sendStatus, setSendStatus] = useState<{ count: number; simulated: boolean } | null>(null);
 
-  const handleGenerateAll = async () => {
+  const currentLead = selectedLeads[activeLeadIndex] || selectedLeads[0];
+
+  const handleGenerateMessageForCurrent = async () => {
+    if (!currentLead) return;
     setIsGenerating(true);
-    setErrorMessage(null);
     try {
-      const hasKey = Boolean(localStorage.getItem('OPENROUTER_API_KEY'));
+      const msg = await generateOutreachMessageWithAI(currentLead, config);
+      onUpdateLeadMessage(currentLead.id, msg.subject, msg.body);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateAllMessages = async () => {
+    setIsGenerating(true);
+    try {
       for (const lead of selectedLeads) {
-        const msg = await callOpenRouter(lead, config);
-        onUpdateLeadMessage(lead.id, msg.subject, msg.body);
-      }
-      setIsGenerating(false);
-      setSuccessMessage(hasKey ? 'Messaggi generati con successo tramite OpenRouter API!' : 'Messaggi personalizzati generati con il template intelligente dell’agente!');
-      setTimeout(() => setSuccessMessage(null), 4000);
-    } catch (err) {
-      console.error(err);
-      setIsGenerating(false);
-      setErrorMessage('Errore durante la generazione dei messaggi.');
-    }
-  };
-
-  const handleSendViaResend = async (leadId?: string) => {
-    const targets = leadId ? selectedLeads.filter(l => l.id === leadId) : selectedLeads.filter(l => l.email && l.message?.body);
-    if (targets.length === 0) {
-      setErrorMessage('Nessun lead selezionato con email di contatto e messaggio pronto.');
-      return;
-    }
-
-    setIsSending(true);
-    setErrorMessage(null);
-
-    let successCount = 0;
-    let mockCount = 0;
-    let failCount = 0;
-
-    for (const lead of targets) {
-      if (!lead.email || !lead.message) continue;
-
-      try {
-        const res = await fetch('/api/send-outreach-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: lead.email,
-            subject: lead.message.subject,
-            body: lead.message.body,
-          }),
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          if (data.mock) mockCount++;
-          else successCount++;
-          onSendMessages([lead.id]);
-        } else {
-          failCount++;
-          console.error(`Errore invio per ${lead.shopName}:`, data.error);
+        if (!lead.message?.body) {
+          const msg = await generateOutreachMessageWithAI(lead, config);
+          onUpdateLeadMessage(lead.id, msg.subject, msg.body);
         }
-      } catch (err) {
-        failCount++;
-        console.error('Errore di rete invio email:', err);
       }
+    } finally {
+      setIsGenerating(false);
     }
-
-    setIsSending(false);
-    const summary = [];
-    if (successCount > 0) summary.push(`${successCount} email inviate **Reali** via Resend`);
-    if (mockCount > 0) summary.push(`${mockCount} email simulate in **Modalità Mock**`);
-    if (failCount > 0) summary.push(`${failCount} errori`);
-
-    setSuccessMessage(`Invio completato: ${summary.join(', ')}.`);
-    setTimeout(() => setSuccessMessage(null), 6000);
   };
+
+  const handleSendAllSelected = async () => {
+    setIsSending(true);
+    setSendStatus(null);
+    try {
+      let simulated = true;
+      for (const lead of selectedLeads) {
+        if (lead.email) {
+          const res = await sendOutreachEmail({
+            to: lead.email,
+            subject: lead.message?.subject || `Collaborazione con ${config.productName}`,
+            body: lead.message?.body || 'Ciao...',
+            config,
+          });
+          if (!res.simulated) simulated = false;
+        }
+      }
+      onSendMessages(selectedLeads.map((l) => l.id));
+      setSendStatus({ count: selectedLeads.length, simulated });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  if (selectedLeads.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500 shadow-xs">
+        <Mail className="w-10 h-10 mx-auto text-slate-400 mb-3" />
+        <h3 className="text-base font-semibold text-slate-900 mb-1">Nessun lead selezionato per l'Outreach</h3>
+        <p className="text-xs text-slate-500">Torna al tab "Contacts & Leads" e seleziona uno o più lead con la casella di spunta.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-indigo-400" />
-              Outreach Automatico & Invio Resend (Reale / Mock)
-            </h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Rivedi e personalizza i messaggi generati dall'IA. Invia email reali tramite Resend o simula la campagna.
-            </p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-slate-700" />
+            Outreach AI & Invio Messaggi ({selectedLeads.length} Lead Selezionati)
+          </h3>
+          <p className="text-slate-500 text-xs mt-0.5">
+            Genera messaggi ultra-personalizzati in base ai segnali di ogni negozio e inviali via email o canale partner.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleGenerateAllMessages}
+            disabled={isGenerating}
+            className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+            Genera Testi per Tutti
+          </button>
+          <button
+            onClick={handleSendAllSelected}
+            disabled={isSending}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center gap-2 disabled:opacity-50"
+          >
+            <Send className="w-3.5 h-3.5" />
+            Invia Outreach ({selectedLeads.length})
+          </button>
+        </div>
+      </div>
+
+      {sendStatus && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>
+              Outreach completato con successo per <b>{sendStatus.count} lead</b>!{' '}
+              {sendStatus.simulated
+                ? '(Modalità test simulata: configura Resend API Key per spedizione reale)'
+                : '(Spedito realmente via Resend API)'}
+            </span>
           </div>
+        </div>
+      )}
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={handleGenerateAll}
-              disabled={selectedLeads.length === 0 || isGenerating}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-sm font-medium rounded-lg shadow-lg shadow-indigo-600/20 transition flex items-center gap-2"
-            >
-              <Sparkles className="w-4 h-4" />
-              {isGenerating ? 'Generazione in corso...' : `Genera Messaggi (${selectedLeads.length})`}
-            </button>
-
-            <button
-              onClick={() => handleSendViaResend()}
-              disabled={selectedLeads.length === 0 || isSending}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-sm font-medium rounded-lg shadow-lg shadow-emerald-600/20 transition flex items-center gap-2"
-            >
-              <Send className="w-4 h-4" />
-              {isSending ? 'Invio in corso...' : 'Invia Email (Resend / Mock)'}
-            </button>
+      {/* Editor & Lead Carousel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: Selected Leads List */}
+        <div className="space-y-2">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Coda Selezionati</span>
+          <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
+            {selectedLeads.map((lead, idx) => (
+              <button
+                key={lead.id}
+                onClick={() => setActiveLeadIndex(idx)}
+                className={`w-full text-left p-3 rounded-xl border text-xs transition flex items-center justify-between ${
+                  activeLeadIndex === idx
+                    ? 'bg-slate-100 border-slate-300 font-semibold text-slate-900 shadow-xs'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <div>
+                  <div className="font-semibold text-slate-900">{lead.shopName}</div>
+                  <div className="text-[10px] text-slate-500">{lead.platform} • {lead.city || 'CH'}</div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-mono font-bold">
+                    {lead.leadScore}/100
+                  </span>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{lead.status}</div>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
-        {successMessage && (
-          <div className="mt-6 bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-            {successMessage}
-          </div>
-        )}
+        {/* Right: Active Lead Message Editor */}
+        {currentLead && (
+          <div className="lg:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900">{currentLead.shopName}</h4>
+                <p className="text-xs text-slate-500">{currentLead.email ? `Destinatario: ${currentLead.email}` : 'Nessuna email salvata'}</p>
+              </div>
 
-        {errorMessage && (
-          <div className="mt-6 bg-rose-950/60 border border-rose-800/60 text-rose-300 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
-            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-            {errorMessage}
-          </div>
-        )}
+              <button
+                onClick={handleGenerateMessageForCurrent}
+                disabled={isGenerating}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                Rigenera con IA
+              </button>
+            </div>
 
-        {selectedLeads.length === 0 ? (
-          <div className="py-16 text-center text-slate-500">
-            <MessageSquare className="w-12 h-12 mx-auto text-slate-700 mb-3" />
-            <p className="text-base text-slate-300 font-medium">Nessun lead selezionato per l'outreach</p>
-            <p className="text-sm mt-1">Vai alla scheda "Scopri Lead" e seleziona i lead desiderati.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6">
-            {selectedLeads.map((lead) => {
-              const hasMessage = !!lead.message?.body;
-              const hasEmail = Boolean(lead.email);
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Oggetto Email</label>
+              <input
+                type="text"
+                value={currentLead.message?.subject || ''}
+                onChange={(e) => onUpdateLeadMessage(currentLead.id, e.target.value, currentLead.message?.body || '')}
+                placeholder="Oggetto dell'email..."
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+            </div>
 
-              return (
-                <div
-                  key={lead.id}
-                  className="bg-slate-950 border border-slate-800 rounded-xl p-5 shadow-md flex flex-col justify-between space-y-4"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-base">{lead.shopName}</span>
-                        <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                          {lead.platform}
-                        </span>
-                        <span className="text-[10px] bg-indigo-950 text-indigo-300 px-1.5 py-0.5 rounded uppercase font-mono">
-                          {lead.language}
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold text-indigo-400 bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-900/50">
-                        Score: {lead.leadScore}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs bg-slate-900/80 p-2.5 rounded border border-slate-800/80">
-                      <div>
-                        <span className="text-slate-300 font-medium block mb-0.5">Contatto Email:</span>
-                        {hasEmail ? (
-                          <span className="text-emerald-400 font-mono font-medium">✉️ {lead.email}</span>
-                        ) : (
-                          <span className="text-amber-400">⚠️ Nessuna email (Usa Form / DM)</span>
-                        )}
-                      </div>
-                      {hasEmail && (
-                        <button
-                          onClick={() => handleSendViaResend(lead.id)}
-                          disabled={isSending || !hasMessage}
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white text-xs font-medium rounded shadow transition flex items-center gap-1"
-                        >
-                          <Send className="w-3 h-3" /> Invia Singola
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="text-xs text-slate-400 bg-slate-900/50 p-2 rounded">
-                      <span className="text-slate-300 font-medium">Contesto: </span>
-                      {lead.shortNotes}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                          <Mail className="w-3.5 h-3.5 text-indigo-400" />
-                          Messaggio Outreach Generato
-                        </label>
-                        {hasMessage && (
-                          <span className="text-[10px] text-emerald-400 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Pronto
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        value={lead.message?.subject || ''}
-                        onChange={(e) => onUpdateLeadMessage(lead.id, e.target.value, lead.message?.body || '')}
-                        placeholder="Oggetto dell'email..."
-                        className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-xs mb-2 focus:outline-none focus:border-indigo-500"
-                      />
-                      <textarea
-                        rows={4}
-                        value={lead.message?.body || ''}
-                        onChange={(e) => onUpdateLeadMessage(lead.id, lead.message?.subject || '', e.target.value)}
-                        placeholder="Clicca 'Genera Messaggi' per scrivere il copy con l'IA..."
-                        className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-indigo-500 font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{lead.message?.sentAt ? `Inviato alle ${lead.message.sentAt}` : 'Follow-up: 2 & 5 giorni (Programmato)'}</span>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded font-medium capitalize flex items-center gap-1 ${
-                        lead.status === 'contacted' || lead.status === 'awaiting_reply'
-                          ? 'bg-blue-950 text-blue-300 border border-blue-800/50'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {lead.status === 'contacted' && <ShieldCheck className="w-3 h-3 text-emerald-400" />}
-                      {lead.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Corpo del Messaggio</label>
+              <textarea
+                rows={10}
+                value={currentLead.message?.body || ''}
+                onChange={(e) => onUpdateLeadMessage(currentLead.id, currentLead.message?.subject || '', e.target.value)}
+                placeholder="Clicca su 'Rigenera con IA' o scrivi qui il messaggio..."
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-sans text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+            </div>
           </div>
         )}
       </div>

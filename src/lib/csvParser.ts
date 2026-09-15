@@ -1,95 +1,158 @@
-import { Lead, ProductConfig, Language } from '../types';
+import { Lead, ProductConfig, Platform, Language } from '../types';
+import { calculateLeadScore } from './leadScoring';
+
+/**
+ * Autodetects whether the delimiter is comma, semicolon, or tab.
+ */
+function detectDelimiter(headerLine: string): string {
+  const semicolons = (headerLine.match(/;/g) || []).length;
+  const commas = (headerLine.match(/,/g) || []).length;
+  const tabs = (headerLine.match(/\t/g) || []).length;
+
+  if (tabs > commas && tabs > semicolons) return '\t';
+  if (semicolons >= commas) return ';';
+  return ',';
+}
+
+/**
+ * Splits a CSV line into cells respecting quotes.
+ */
+function splitCSVLine(line: string, delimiter: string): string[] {
+  const values: string[] = [];
+  let insideQuote = false;
+  let currentVal = '';
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (insideQuote && line[i + 1] === '"') {
+        currentVal += '"';
+        i++; // skip escaped quote
+      } else {
+        insideQuote = !insideQuote;
+      }
+    } else if (char === delimiter && !insideQuote) {
+      values.push(currentVal.trim().replace(/^"|"$/g, ''));
+      currentVal = '';
+    } else {
+      currentVal += char;
+    }
+  }
+  values.push(currentVal.trim().replace(/^"|"$/g, ''));
+  return values;
+}
 
 export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
-  const lines = csvText.split('\n').map((l) => l.trim()).filter(Boolean);
-  if (lines.length <= 1) return [];
+  // Strip UTF-8 BOM if present
+  const cleanText = csvText.replace(/^\uFEFF/, '').trim();
+  if (!cleanText) return [];
 
-  // Parse header
-  const header = lines[0].toLowerCase().split(',').map((h) => h.trim().replace(/^["']|["']$/g, ''));
-  
-  const nameIdx = header.findIndex((h) => h.includes('company') || h.includes('name') || h.includes('azienda') || h.includes('shop'));
-  const webIdx = header.findIndex((h) => h.includes('web') || h.includes('url') || h.includes('sito') || h.includes('link'));
-  const emailIdx = header.findIndex((h) => h.includes('email') || h.includes('mail') || h.includes('contatto'));
-  const cityIdx = header.findIndex((h) => h.includes('city') || h.includes('citt') || h.includes('ort'));
-  const cantonIdx = header.findIndex((h) => h.includes('canton') || h.includes('cantone') || h.includes('state'));
-  const industryIdx = header.findIndex((h) => h.includes('industry') || h.includes('settore') || h.includes('sector') || h.includes('categoria'));
-  const notesIdx = header.findIndex((h) => h.includes('note') || h.includes('description') || h.includes('descrizione'));
+  const lines = cleanText.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return [];
+
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = splitCSVLine(lines[0], delimiter).map((h) =>
+    h.toLowerCase().trim().replace(/['"]/g, '').replace(/\s+/g, '_')
+  );
 
   const leads: Lead[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map((c) => c.trim().replace(/^["']|["']$/g, ''));
-    if (cols.length < 1) continue;
+    const line = lines[i].trim();
+    if (!line) continue;
 
-    const shopName = nameIdx >= 0 && cols[nameIdx] ? cols[nameIdx] : `Swiss Enterprise ${i}`;
-    const shopUrl = webIdx >= 0 && cols[webIdx] ? cols[webIdx] : `https://${shopName.toLowerCase().replace(/[^a-z0-9]/g, '')}.ch`;
-    const email = emailIdx >= 0 && cols[emailIdx] ? cols[emailIdx] : undefined;
-    const city = cityIdx >= 0 && cols[cityIdx] ? cols[cityIdx] : 'Zürich';
-    const canton = cantonIdx >= 0 && cols[cantonIdx] ? cols[cantonIdx] : 'ZH';
-    const industry = industryIdx >= 0 && cols[industryIdx] ? cols[industryIdx] : 'Services';
-    const notes = notesIdx >= 0 && cols[notesIdx] ? cols[notesIdx] : '';
+    const values = splitCSVLine(line, delimiter);
+    const row: Record<string, string> = {};
+    headers.forEach((h, idx) => {
+      row[h] = values[idx] !== undefined ? values[idx].trim() : '';
+    });
 
-    // Language logic for Switzerland
-    let language: Language = 'de';
-    const frCantons = ['GE', 'VD', 'FR', 'NE', 'JU', 'VS'];
-    const itCantons = ['TI', 'GR'];
-    const upperCanton = canton.toUpperCase();
+    // Flexible key matcher
+    const getVal = (...keys: string[]): string => {
+      for (const k of keys) {
+        if (row[k] !== undefined && row[k] !== '') return row[k];
+        // check partial keys
+        const foundKey = Object.keys(row).find(
+          (rk) => rk === k || rk.includes(k) || k.includes(rk)
+        );
+        if (foundKey && row[foundKey]) return row[foundKey];
+      }
+      return '';
+    };
 
-    if (frCantons.includes(upperCanton)) {
-      language = 'fr';
-    } else if (itCantons.includes(upperCanton)) {
-      language = 'it';
-    } else {
-      language = 'de';
-    }
+    const shopName =
+      getVal('name', 'nome', 'shop', 'store', 'azienda', 'company', 'creator', 'brand', 'titolo', 'contatto') ||
+      `Contatto #${i}`;
 
-    const majorCities = ['zürich', 'zurich', 'geneva', 'genève', 'basel', 'bern', 'lausanne', 'lugano', 'luzern', 'st. gallen'];
-    const isMajorCity = majorCities.some((c) => city.toLowerCase().includes(c));
-    const hasEmail = Boolean(email);
-    
-    const lowerProductDesc = (config.productDescription + ' ' + config.productName + ' ' + config.offerType).toLowerCase();
-    const hasKeyword = (industry + ' ' + notes).toLowerCase().split(' ').some((w) => w.length > 3 && lowerProductDesc.includes(w));
+    const email = getVal('email', 'e-mail', 'mail', 'pec', 'indirizzo_email');
+    const platformRaw = getVal('platform', 'piattaforma', 'canale', 'channel', 'fonte', 'source') || 'Web';
 
-    // Scoring logic for CSV Swiss lead
-    let industryScore = 20;
-    let cityScore = isMajorCity ? 20 : 10;
-    let emailScore = hasEmail ? 20 : 0;
-    let keywordScore = hasKeyword ? 20 : 10;
-    let baseScore = 20;
+    let platform: Platform = 'Web';
+    const pLower = platformRaw.toLowerCase();
+    if (pLower.includes('etsy')) platform = 'Etsy';
+    else if (pLower.includes('amazon') || pLower.includes('kdp')) platform = 'Amazon KDP';
+    else if (pLower.includes('shopify')) platform = 'Shopify';
+    else if (pLower.includes('instagram') || pLower.includes('ig')) platform = 'Instagram';
+    else if (pLower.includes('linkedin')) platform = 'LinkedIn';
 
-    const leadScore = Math.min(100, industryScore + cityScore + emailScore + keywordScore + baseScore);
+    const langRaw = getVal('language', 'lingua', 'lang').toLowerCase();
+    let language: Language = 'it';
+    if (langRaw.includes('en') || langRaw.includes('ingl')) language = 'en';
+    else if (langRaw.includes('de') || langRaw.includes('ted')) language = 'de';
+    else if (langRaw.includes('fr') || langRaw.includes('fran')) language = 'fr';
 
-    leads.push({
-      id: `csv_lead_${i}_${Date.now().toString().slice(-4)}`,
-      source: 'csv',
-      platform: email ? 'Email (da CSV)' : 'Swiss Company',
+    const city = getVal('city', 'citta', 'città', 'comune', 'luogo', 'location') || 'Svizzera';
+    const canton = getVal('canton', 'cantone', 'provincia', 'regione', 'paese', 'country') || 'CH';
+    const industry = getVal('industry', 'settore', 'categoria', 'category', 'nicchia') || 'E-Commerce';
+    const notes = getVal('notes', 'note', 'descrizione', 'description', 'bio', 'dettagli') || 'Importato da CSV';
+    const url = getVal('url', 'website', 'sito', 'link', 'shopurl', 'profilo') || '';
+
+    const productsCount = parseInt(getVal('products', 'prodotti', 'articoli', 'items') || '10', 10) || 10;
+    const reviewsCount = parseInt(getVal('reviews', 'recensioni', 'feedback') || '15', 10) || 15;
+    const monthsCount = parseInt(getVal('months', 'mesi', 'attivita') || '12', 10) || 12;
+    const revenueEst = getVal('revenue', 'fatturato', 'vendite') || 'Non specificato';
+
+    const baseLead: Partial<Lead> = {
+      id: `csv_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 7)}`,
       shopName,
-      shopUrl,
+      shopUrl: url || `https://${shopName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+      platform,
+      language,
       email,
       city,
       canton,
       industry,
-      language,
       businessSignals: {
-        numProducts: Math.floor(15 + Math.random() * 60),
-        numReviews: Math.floor(10 + Math.random() * 50),
-        monthsActive: 12,
-        estimatedRevenue: `CHF ${Math.floor(10000 + Math.random() * 50000)}/mo`,
+        numProducts: productsCount,
+        numReviews: reviewsCount,
+        monthsActive: monthsCount,
+        estimatedRevenue: revenueEst,
       },
-      hasNeedSignal: hasKeyword || isMajorCity,
-      shortNotes: `${industry} in ${city} (${canton})${notes ? ' - ' + notes : ''}`,
-      leadScore,
-      scoreBreakdown: {
-        productScore: industryScore,
-        reviewScore: cityScore,
-        tenureScore: emailScore,
-        needScore: keywordScore,
-        keywordScore: baseScore,
-      },
+      hasNeedSignal: true,
+      shortNotes: notes,
+      source: 'csv',
       status: 'discovered',
-      selected: leadScore >= config.minLeadScore,
-    });
+      selected: true,
+    };
+
+    const leadScore = calculateLeadScore(baseLead, config);
+
+    leads.push({
+      ...baseLead,
+      leadScore,
+    } as Lead);
   }
 
-  return leads.sort((a, b) => b.leadScore - a.leadScore);
+  return leads;
+}
+
+/**
+ * Returns a ready-to-download sample CSV template string
+ */
+export function getSampleCSVTemplate(): string {
+  return `Nome Negozio,Email,Piattaforma,Città,Cantone,Sito Web,Settore,Note
+Swiss Alps Honey,info@swissalpshoney.ch,Shopify,Lugano,TI,https://swissalpshoney.ch,Alimentare & Bio,Prodotti naturali artigianali
+Zurich Wall Art,contact@zurichwallart.com,Etsy,Zurigo,ZH,https://etsy.com/shop/zurichwallart,Decorazioni Casa,Stampe grafiche d'autore
+Helvetia Indie Books,author@helvetiabooks.ch,Amazon KDP,Berna,BE,https://amazon.com/dp/example,Editoria & Guide,Libri fotografici e guide escursionistiche
+Milano Fashion Crafts,hello@milanocrafts.it,Instagram,Milano,IT,https://instagram.com/milanocrafts,Moda & Accessori,Community attiva oltre 25k followers`;
 }

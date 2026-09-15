@@ -1,179 +1,51 @@
 import React from 'react';
-import { BookOpen, Sparkles, FileSpreadsheet, Settings, Users, Send, CheckCircle2, ShieldAlert, Key, HelpCircle } from 'lucide-react';
+import { BookOpen, CheckCircle, AlertTriangle, ShieldCheck, Key, ArrowRight } from 'lucide-react';
 
-interface InstructionsPageProps {
-  onStartTour: () => void;
-  onGoToConfig: () => void;
-}
-
-export const InstructionsPage: React.FC<InstructionsPageProps> = ({ onStartTour, onGoToConfig }) => {
+export const InstructionsPage: React.FC = () => {
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12 animate-fade-in">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-indigo-900/80 via-slate-900 to-slate-900 border border-indigo-800/60 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute right-4 top-4 opacity-10">
-          <BookOpen className="w-36 h-36 text-indigo-400" />
-        </div>
-        <div className="relative z-10 space-y-4">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-950 text-indigo-300 text-xs font-semibold border border-indigo-800">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            Guida Ufficiale & Manuale Utente
-          </span>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Manuale di Utilizzo: Affiliate Sales Agent
-          </h1>
-          <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
-            Scopri come configurare il tuo agente di vendita autonomo, caricare liste di lead locali (Svizzera e mercati internazionali), generare messaggi personalizzati tramite OpenRouter e chiudere contratti e partnership.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={onStartTour}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-indigo-600/30 transition flex items-center gap-2"
-            >
-              <HelpCircle className="w-4 h-4" />
-              Avvia Guida Interattiva / Tour Guidato
-            </button>
-            <button
-              onClick={onGoToConfig}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs border border-slate-700 transition flex items-center gap-2"
-            >
-              <Settings className="w-4 h-4 text-amber-400" />
-              Inizia la Configurazione Prodotto
-            </button>
-          </div>
-        </div>
+    <div className="space-y-8 max-w-4xl">
+      <div>
+        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-slate-700" />
+          Guida Operativa & Architettura Funzionale
+        </h3>
+        <p className="text-slate-500 text-xs mt-1">
+          Tutto quello che c'è da sapere sul funzionamento di Affiliate Sales Agent e sulle integrazioni reali vs simulate.
+        </p>
       </div>
 
-      {/* Sections Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Step 1: Configurazione */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <div className="w-10 h-10 rounded-xl bg-indigo-950 text-indigo-400 flex items-center justify-center border border-indigo-800/80 font-bold">
-            1
-          </div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Settings className="w-5 h-5 text-indigo-400" />
-            Configurazione del Prodotto & Obiettivo
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            L'agente è completamente <strong>product-agnostic</strong>. Inserisci qualsiasi URL di prodotto, SaaS, tool o programma di affiliazione.
-          </p>
-          <ul className="space-y-2 text-xs text-slate-300">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>URL & Nome:</strong> Il link di destinazione e il nome commerciale del prodotto.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>4 Obiettivi Nativi:</strong> Vendita diretta, servizio done-for-you, reclutamento affiliati, vendita lead.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>Soglia Lead Score:</strong> Filtra automaticamente i lead con punteggio inferiore al valore scelto (es. 70/100).</span>
-            </li>
-          </ul>
-        </div>
-
-        {/* Step 2: Caricamento CSV */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <div className="w-10 h-10 rounded-xl bg-emerald-950 text-emerald-400 flex items-center justify-center border border-emerald-800/80 font-bold">
-            2
-          </div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-            Caricamento Lead da CSV (SwissLeadFinder)
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Puoi caricare file CSV con aziende o contatti. Il sistema mappa automaticamente le colonne e applica la logica di mercato locale svizzero.
-          </p>
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] font-mono text-slate-300 overflow-x-auto">
-            company_name,website,email,city,canton,industry,notes<br />
-            "Alpine Tech SA","https://alpinetech.ch","info@alpinetech.ch","Zürich","ZH","Software","AI tools"
-          </div>
-          <p className="text-[11px] text-emerald-400">
-            🇨🇭 <strong>Logica Cantoni:</strong> ZH/BE/BS impostano la lingua in tedesco (DE), GE/VD in francese (FR), TI in italiano (IT).
-          </p>
-        </div>
-
-        {/* Step 3: OpenRouter LLM */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <div className="w-10 h-10 rounded-xl bg-amber-950 text-amber-400 flex items-center justify-center border border-amber-800/80 font-bold">
-            3
-          </div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Key className="w-5 h-5 text-amber-400" />
-            Integrazione LLM con OpenRouter
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            L'app supporta chiamate reali a OpenRouter (es. Llama 3, Claude 3.5 Sonnet). Inserisci la tua API Key in configurazione per abilitare la generazione di copie personalizzate.
-          </p>
-          <ul className="space-y-2 text-xs text-slate-300">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>Se non inserisci una chiave, l'app utilizza un motore di simulazione intelligente basato su template multilingua.</span>
-            </li>
-          </ul>
-        </div>
-
-        {/* Step 3.5: Resend Email Integration */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <div className="w-10 h-10 rounded-xl bg-sky-950 text-sky-400 flex items-center justify-center border border-sky-800/80 font-bold">
-            3.5
-          </div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Send className="w-5 h-5 text-sky-400" />
-            Invio Email con Resend (Reale o Mock)
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            L'app integra <strong>Resend</strong> per l'invio di email transazionali reali. 
-          </p>
-          <ul className="space-y-2 text-xs text-slate-300">
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-              <span><strong>Modalità Mock:</strong> Se manca <code>RESEND_API_KEY</code>, l'app simula l'invio, registrando i log a console senza inviare email reali.</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-              <span><strong>Modalità Reale:</strong> Impostando <code>RESEND_API_KEY</code> e verificando il tuo dominio su Resend, le email partono realmente verso i tuoi lead.</span>
-            </li>
-          </ul>
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
-            <div className="text-slate-200 font-semibold">Configurazione Variabili (.env):</div>
-            <div><code>RESEND_API_KEY=re_...</code></div>
-            <div><code>EMAIL_FROM_NAME="Sales Agent"</code></div>
-            <div><code>EMAIL_FROM_ADDRESS="noreply@tuodominio.ch"</code></div>
-          </div>
-        </div>
-
-        {/* Step 4: Pipeline & ROI */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <div className="w-10 h-10 rounded-xl bg-purple-950 text-purple-400 flex items-center justify-center border border-purple-800/80 font-bold">
-            4
-          </div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-purple-400" />
-            Pipeline di Conversione & Dashboard ROI
-          </h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Monitora ogni fase dell'outreach: dall'invio dei messaggi alle risposte classificate dall'IA (Interessato, Da curare, Non interessato), fino alla chiusura dell'affare e calcolo ricavi.
-          </p>
-        </div>
+      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-xs">
+        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+          1. Come Funziona la Ricerca Lead & Motore di Scoring
+        </h4>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          L'applicazione integra un motore interno di generazione lead mirato (<code>marketplaceLeadGenerator.ts</code>) basato su venditori reali tipici di mercati come Etsy, Amazon KDP, Shopify e canali social in Svizzera e nei mercati europei. Ogni lead viene valutato tramite un algoritmo multi-fattoriale (volume di recensioni, mesi di attività, presenza di bisogni dichiarati e corrispondenza linguistica/geografica).
+        </p>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          In aggiunta, puoi importare in qualsiasi momento liste di lead reali esportati dai tuoi strumenti (Hunter.io, LinkedIn Sales Navigator, Google Sheets) tramite la funzionalità di <b>Upload CSV</b> nel tab Configurazione.
+        </p>
       </div>
 
-      {/* Deployment Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h4 className="text-base font-bold text-white">Pronto per il deploy su Vercel & Lovable</h4>
-          <p className="text-xs text-slate-400 mt-1">
-            Il codice è scritto in TypeScript rigoroso con Next.js (App Router) e Tailwind CSS, pronto per essere esportato su qualsiasi No-Code builder o container cloud.
-          </p>
+      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-xs">
+        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <Key className="w-4 h-4 text-blue-600" />
+          2. Modalità Reale vs Modalità Simulazione
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+            <span className="font-bold text-slate-800 block">Outreach Email (Resend)</span>
+            <p className="text-slate-500">
+              Se inserisci la tua <b>Resend API Key</b> nella Configurazione, l'app invierà email reali verso gli indirizzi di contatto dei lead. Se lasci il campo vuoto, la spedizione funzionerà in modalità di simulazione sicura senza errori.
+            </p>
+          </div>
+          <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+            <span className="font-bold text-slate-800 block">AI Copywriting (OpenRouter)</span>
+            <p className="text-slate-500">
+              Se fornisci una chiave <b>OpenRouter</b>, i messaggi verranno scritti da modelli linguistici avanzati (Llama 3, Claude, Mistral). In assenza di chiave, interviene un motore di template multilingua (Italiano, Tedesco, Francese, Inglese) calibrato su conversioni B2B.
+            </p>
+          </div>
         </div>
-        <button
-          onClick={onGoToConfig}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow transition shrink-0"
-        >
-          Inizia Subito
-        </button>
       </div>
     </div>
   );

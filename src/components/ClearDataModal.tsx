@@ -1,0 +1,189 @@
+import React, { useState } from 'react';
+import { Trash2, AlertTriangle, X, ShieldAlert, Sparkles } from 'lucide-react';
+
+interface ClearDataModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  mockLeadsCount: number;
+  totalLeadsCount: number;
+  selectedLeadsCount: number;
+  onClearMockOnly: () => void;
+  onClearAll: () => void;
+  onClearSelected: () => void;
+}
+
+export const ClearDataModal: React.FC<ClearDataModalProps> = ({
+  isOpen,
+  onClose,
+  mockLeadsCount,
+  totalLeadsCount,
+  selectedLeadsCount,
+  onClearMockOnly,
+  onClearAll,
+  onClearSelected,
+}) => {
+  const [actionType, setActionType] = useState<'mock' | 'all' | 'selected'>(
+    mockLeadsCount > 0 ? 'mock' : 'all'
+  );
+
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    if (actionType === 'mock') {
+      onClearMockOnly();
+    } else if (actionType === 'all') {
+      onClearAll();
+    } else if (actionType === 'selected') {
+      onClearSelected();
+    }
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-rose-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Cancella Dati & Lead</h3>
+              <p className="text-xs text-slate-500">
+                Scegli quali contatti desideri rimuovere dall’applicazione
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Options */}
+        <div className="p-6 space-y-3">
+          {mockLeadsCount > 0 && (
+            <label
+              className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                actionType === 'mock'
+                  ? 'border-rose-500 bg-rose-50/30'
+                  : 'border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                type="radio"
+                name="clear_choice"
+                checked={actionType === 'mock'}
+                onChange={() => setActionType('mock')}
+                className="mt-1 text-rose-600 focus:ring-0"
+              />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">
+                    Cancella solo i dati finti / simulati
+                  </span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-semibold">
+                    {mockLeadsCount} lead finti
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Rimuove tutti i lead generati automaticamente di test. Se hai già importato file CSV dal PC, verranno conservati.
+                </p>
+              </div>
+            </label>
+          )}
+
+          {selectedLeadsCount > 0 && (
+            <label
+              className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                actionType === 'selected'
+                  ? 'border-rose-500 bg-rose-50/30'
+                  : 'border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                type="radio"
+                name="clear_choice"
+                checked={actionType === 'selected'}
+                onChange={() => setActionType('selected')}
+                className="mt-1 text-rose-600 focus:ring-0"
+              />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">
+                    Cancella solo i lead selezionati
+                  </span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold">
+                    {selectedLeadsCount} selezionati
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Rimuove soltanto i contatti attualmente contrassegnati con il checkbox nella tabella.
+                </p>
+              </div>
+            </label>
+          )}
+
+          <label
+            className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+              actionType === 'all'
+                ? 'border-rose-500 bg-rose-50/30'
+                : 'border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <input
+              type="radio"
+              name="clear_choice"
+              checked={actionType === 'all'}
+              onChange={() => setActionType('all')}
+              className="mt-1 text-rose-600 focus:ring-0"
+            />
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900">
+                  Svuota tutti i contatti (Tabella vuota)
+                </span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-semibold">
+                  Tutti ({totalLeadsCount})
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Azzera completamente l’elenco contatti per iniziare da zero e caricare un nuovo file CSV dal tuo computer.
+              </p>
+            </div>
+          </label>
+
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 flex items-center gap-2 mt-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span>Questa operazione non potrà essere annullata, ma potrai sempre ricaricare un CSV o rigenerare i dati di prova.</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-xl transition"
+          >
+            Annulla
+          </button>
+
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Conferma Eliminazione
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};

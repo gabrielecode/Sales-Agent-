@@ -1,6 +1,6 @@
 {
-  "name": "Sales Agent",
-  "description": "Autonomous sales agent that finds target leads, personalizes outreach messages, tracks responses, and drives conversions for your product or affiliate offer.",
+  "name": "Affiliate Sales Agent",
+  "description": "Autonomous SaaS agent for marketplace lead discovery, scoring, AI outreach and pipeline conversion.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

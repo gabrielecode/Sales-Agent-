@@ -1,154 +1,87 @@
 import React, { useState } from 'react';
-import { Sparkles, ArrowRight, ArrowLeft, CheckCircle2, X, Settings, FileSpreadsheet, Users, Send, BarChart3, Sliders, Target, Globe } from 'lucide-react';
+import { Sparkles, ArrowRight, Check, X } from 'lucide-react';
 
 interface InteractiveTourModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoadTestConfig: () => void;
 }
 
-const TOUR_STEPS = [
-  {
-    title: "Benvenuto in Affiliate Sales Agent",
-    icon: Sparkles,
-    color: "text-indigo-400 bg-indigo-950 border-indigo-800",
-    description: "Questo agente di vendita autonomo trova attivamente potenziali clienti, li qualifica, genera messaggi di outreach personalizzati tramite OpenRouter e traccia l'intero funnel di conversione.",
-    tip: "Funziona con qualsiasi prodotto, SaaS, agenzia o programma di affiliazione in qualsiasi lingua."
-  },
-  {
-    title: "1. Campi Chiave del Form di Configurazione",
-    icon: Settings,
-    color: "text-amber-400 bg-amber-950 border-amber-800",
-    description: "Nel pannello di configurazione inserisci: 1) L'URL del prodotto o landing page, 2) Il nome commerciale, 3) Una breve descrizione (1-2 frasi). Questi dati vengono usati dall'IA per contestualizzare ogni messaggio.",
-    tip: "Più precisa è la descrizione, più mirati saranno i messaggi di vendita generati."
-  },
-  {
-    title: "2. I 4 Obiettivi Nativi & Target",
-    icon: Target,
-    color: "text-blue-400 bg-blue-950 border-blue-800",
-    description: "Scegli tra: Vendita diretta (abbonamenti/licenze), Servizio done-for-you, Reclutamento affiliati/partner, o Vendita lead ad agenzie. Seleziona anche le categorie target (es. Etsy, Shopify, SaaS, Aziende Svizzere).",
-    tip: "L'agente adatta automaticamente tono e argomentazioni in base all'obiettivo scelto."
-  },
-  {
-    title: "3. Soglia Lead Score & Qualificazione",
-    icon: Sliders,
-    color: "text-purple-400 bg-purple-950 border-purple-800",
-    description: "Il cursore 'Score Minimo Lead' (0-100) filtra automaticamente i prospect. Solo i lead che superano questa soglia (es. 70+) vengono preselezionati per l'outreach, basandosi su segnali di business, recensioni e coerenza di settore.",
-    tip: "Puoi regolare la soglia in qualsiasi momento nella scheda Configurazione per stringere o allargare il target."
-  },
-  {
-    title: "4. Caricamento CSV & Mercato Svizzero",
-    icon: FileSpreadsheet,
-    color: "text-emerald-400 bg-emerald-950 border-emerald-800",
-    description: "Carica file CSV (es. estratti da SwissLeadFinder) con aziende svizzere. Il sistema riconosce automaticamente cantoni (ZH, GE, TI) e assegna la lingua corretta (DE, FR, IT) per i messaggi.",
-    tip: "I lead da CSV si uniscono ai lead mock per darti una copertura di outreach omnicanale."
-  },
-  {
-    title: "5. Outreach AI & Invio Resend (Reale o Mock)",
-    icon: Send,
-    color: "text-sky-400 bg-sky-950 border-sky-800",
-    description: "Genera messaggi con OpenRouter, inviali con follow-up programmati tramite Resend (in modalità reale se configuri la chiave, o in modalità mock di test) e traccia le risposte e il fatturato chiuso nella dashboard.",
-    tip: "Clicca su 'Carica Dati di Esempio' per testare subito l'intera applicazione!"
-  }
-];
-
-export const InteractiveTourModal: React.FC<InteractiveTourModalProps> = ({
-  isOpen,
-  onClose,
-  onLoadTestConfig,
-}) => {
-  const [currentStep, setCurrentStep] = useState(0);
+export const InteractiveTourModal: React.FC<InteractiveTourModalProps> = ({ isOpen, onClose }) => {
+  const [step, setStep] = useState(0);
 
   if (!isOpen) return null;
 
-  const step = TOUR_STEPS[currentStep];
-  const IconComponent = step.icon;
+  const tourSteps = [
+    {
+      title: 'Benvenuto in Affiliate Sales Agent',
+      desc: 'La tua piattaforma intelligente per scoprire creator e venditori su Etsy, Amazon KDP e Shopify, automatizzare l’outreach e monitorare le conversioni dei partner.',
+    },
+    {
+      title: '1. Tabella Lead con Scoring Intelligente',
+      desc: 'Ogni lead riceve un punteggio da 1 a 100 in base a recensioni, anzianità e affinità con il tuo prodotto. Seleziona i contatti migliori per avviare il flusso.',
+    },
+    {
+      title: '2. Outreach AI & Invio Email',
+      desc: 'Genera email altamente personalizzate con l’AI e spediscile con un click tramite Resend o in modalità test.',
+    },
+    {
+      title: '3. Gestione Risposte & Pipeline',
+      desc: 'Segui le risposte dei creator, fai follow-up e chiudi partnership ad alto rendimento!',
+    },
+  ];
 
-  const handleNext = () => {
-    if (currentStep < TOUR_STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      onLoadTestConfig();
-      onClose();
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
+  const current = tourSteps[step];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative space-y-6">
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800/60 transition"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        {/* Progress bar */}
-        <div className="flex items-center gap-1.5 pt-2">
-          {TOUR_STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 flex-1 rounded-full transition ${
-                i <= currentStep ? 'bg-indigo-600' : 'bg-slate-800'
-              }`}
-            />
-          ))}
-        </div>
-
-        <div className="space-y-4 text-center">
-          <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border ${step.color} shadow-lg`}>
-            <IconComponent className="w-7 h-7" />
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
-              Passo {currentStep + 1} di {TOUR_STEPS.length}
-            </span>
-            <h3 className="text-xl font-bold text-white">{step.title}</h3>
-          </div>
-
-          <p className="text-sm text-slate-300 leading-relaxed px-2">
-            {step.description}
-          </p>
-
-          <div className="bg-indigo-950/50 border border-indigo-900/50 rounded-xl p-3 text-xs text-indigo-300 text-left flex items-start gap-2">
-            <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-            <span><strong>💡 Consiglio Pro:</strong> {step.tip}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-          <button
-            onClick={handlePrev}
-            disabled={currentStep === 0}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:pointer-events-none text-slate-300 text-xs font-medium rounded-xl transition flex items-center gap-1.5"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Indietro
+    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-scale-up">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-400">PASSO {step + 1} DI {tourSteps.length}</span>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
           </button>
+        </div>
 
-          <button
-            onClick={handleNext}
-            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5"
-          >
-            {currentStep === TOUR_STEPS.length - 1 ? (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                Carica Dati di Test & Inizia
-              </>
-            ) : (
-              <>
-                Avanti
-                <ArrowRight className="w-3.5 h-3.5" />
-              </>
+        <div className="space-y-2">
+          <h3 className="text-base font-bold text-slate-900">{current.title}</h3>
+          <p className="text-xs text-slate-600 leading-relaxed">{current.desc}</p>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex gap-1">
+            {tourSteps.map((_, idx) => (
+              <div
+                key={idx}
+                className={`w-2 h-2 rounded-full transition ${idx === step ? 'bg-slate-900' : 'bg-slate-200'}`}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {step > 0 && (
+              <button
+                onClick={() => setStep(step - 1)}
+                className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition"
+              >
+                Indietro
+              </button>
             )}
-          </button>
+            {step < tourSteps.length - 1 ? (
+              <button
+                onClick={() => setStep(step + 1)}
+                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+              >
+                Avanti <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+              >
+                Inizia a Esplorare <Check className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
