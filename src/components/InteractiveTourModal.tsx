@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, ArrowRight, ArrowLeft, CheckCircle2, X, Settings, FileSpreadsheet, Users, Send, BarChart3 } from 'lucide-react';
+import { Sparkles, ArrowRight, ArrowLeft, CheckCircle2, X, Settings, FileSpreadsheet, Users, Send, BarChart3, Sliders, Target, Globe } from 'lucide-react';
 
 interface InteractiveTourModalProps {
   isOpen: boolean;
@@ -16,32 +16,39 @@ const TOUR_STEPS = [
     tip: "Funziona con qualsiasi prodotto, SaaS, agenzia o programma di affiliazione in qualsiasi lingua."
   },
   {
-    title: "1. Configurazione del Prodotto",
+    title: "1. Campi Chiave del Form di Configurazione",
     icon: Settings,
     color: "text-amber-400 bg-amber-950 border-amber-800",
-    description: "Nella scheda 'Configuration', inserisci l'URL del tuo prodotto, il nome, una breve descrizione e seleziona il tipo di offerta (vendita diretta, servizio done-for-you, affiliati o lead).",
-    tip: "Puoi anche inserire la tua OpenRouter API Key per abilitare la generazione LLM in produzione."
+    description: "Nel pannello di configurazione inserisci: 1) L'URL del prodotto o landing page, 2) Il nome commerciale, 3) Una breve descrizione (1-2 frasi). Questi dati vengono usati dall'IA per contestualizzare ogni messaggio.",
+    tip: "Più precisa è la descrizione, più mirati saranno i messaggi di vendita generati."
   },
   {
-    title: "2. Caricamento Lead CSV (Svizzera)",
+    title: "2. I 4 Obiettivi Nativi & Target",
+    icon: Target,
+    color: "text-blue-400 bg-blue-950 border-blue-800",
+    description: "Scegli tra: Vendita diretta (abbonamenti/licenze), Servizio done-for-you, Reclutamento affiliati/partner, o Vendita lead ad agenzie. Seleziona anche le categorie target (es. Etsy, Shopify, SaaS, Aziende Svizzere).",
+    tip: "L'agente adatta automaticamente tono e argomentazioni in base all'obiettivo scelto."
+  },
+  {
+    title: "3. Soglia Lead Score & Qualificazione",
+    icon: Sliders,
+    color: "text-purple-400 bg-purple-950 border-purple-800",
+    description: "Il cursore 'Score Minimo Lead' (0-100) filtra automaticamente i prospect. Solo i lead che superano questa soglia (es. 70+) vengono preselezionati per l'outreach, basandosi su segnali di business, recensioni e coerenza di settore.",
+    tip: "Puoi regolare la soglia in qualsiasi momento nella scheda Configurazione per stringere o allargare il target."
+  },
+  {
+    title: "4. Caricamento CSV & Mercato Svizzero",
     icon: FileSpreadsheet,
     color: "text-emerald-400 bg-emerald-950 border-emerald-800",
-    description: "Carica file CSV (es. estratti da SwissLeadFinder) con aziende svizzere. Il sistema riconosce automaticamente cantoni (ZH, GE, TI) e assegna la lingua corretta (DE, FR, IT).",
-    tip: "Puoi usare sia lead mock generati automaticamente che lead CSV reali."
+    description: "Carica file CSV (es. estratti da SwissLeadFinder) con aziende svizzere. Il sistema riconosce automaticamente cantoni (ZH, GE, TI) e assegna la lingua corretta (DE, FR, IT) per i messaggi.",
+    tip: "I lead da CSV si uniscono ai lead mock per darti una copertura di outreach omnicanale."
   },
   {
-    title: "3. Scoperta & Lead Scoring",
-    icon: Users,
-    color: "text-purple-400 bg-purple-950 border-purple-800",
-    description: "La tabella lead valuta ogni prospect assegnando un punteggio da 0 a 100 basato su segnali di business, dimensione del catalogo, recensioni e coerenza di settore.",
-    tip: "Usa i filtri per visualizzare solo i lead sopra la soglia minima e selezionalur con un click."
-  },
-  {
-    title: "4. Outreach & Dashboard ROI",
+    title: "5. Outreach AI & Dashboard ROI",
     icon: BarChart3,
-    color: "text-blue-400 bg-blue-950 border-blue-800",
-    description: "Genera messaggi di outreach personalizzati, simula l'invio con follow-up programmati e traccia le risposte e il fatturato chiuso nella dashboard finale.",
-    tip: "Clicca su 'Carica Dati di Esempio' in configurazione per testare subito l'intera app!"
+    color: "text-indigo-400 bg-indigo-950 border-indigo-800",
+    description: "Genera messaggi con OpenRouter (o con il simulatore intelligente), inviali con follow-up programmati e traccia le risposte e il fatturato chiuso nella dashboard finale.",
+    tip: "Clicca su 'Carica Dati di Esempio' per testare subito l'intera applicazione!"
   }
 ];
 
