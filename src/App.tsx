@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ProductConfig, Lead, AppTab } from './types';
 import { DEFAULT_CONFIG, parseCSVLeads, simulateSimulatedResponses } from './utils/mockData';
 import { generateMarketplaceLeads } from './lib/marketplaceLeadGenerator';
+import { validateEmailQuality, determineToneOfVoice } from './lib/csvParser';
 import { ProductConfigForm } from './components/ProductConfigForm';
 import { LeadFilters } from './components/LeadFilters';
 import { LeadTable } from './components/LeadTable';
@@ -28,10 +29,13 @@ import {
   RefreshCw,
   Upload,
   Trash2,
+  Menu,
+  X,
 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('leads');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [config, setConfig] = useState<ProductConfig>(() => {
     try {
       const saved = localStorage.getItem('AFFILIATE_AGENT_CONFIG');
@@ -43,7 +47,14 @@ export default function App() {
   const [leads, setLeads] = useState<Lead[]>(() => {
     try {
       const saved = localStorage.getItem('AFFILIATE_AGENT_LEADS');
-      if (saved !== null) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        return parsed.map((l: Lead) => ({
+          ...l,
+          emailQuality: l.emailQuality || (l.email ? validateEmailQuality(l.email) : 'Mancante'),
+          toneOfVoice: l.toneOfVoice || determineToneOfVoice(l.industry),
+        }));
+      }
     } catch (e) {}
     return generateMarketplaceLeads(DEFAULT_CONFIG);
   });
@@ -273,10 +284,174 @@ export default function App() {
   const csvLeadsCount = leads.filter((l) => l.source === 'csv').length;
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-hidden">
-      {/* 1. Left Sidebar (Fixed, Pure White) */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between z-20 shrink-0">
-        <div>
+    <div className="flex flex-col md:flex-row h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-hidden">
+      {/* 1. Mobile Top Navigation Bar (Visible only on < md screens) */}
+      <nav className="md:hidden flex flex-col w-full bg-white border-b border-slate-200 shrink-0 z-30 overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-xs">
+              <Workflow className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold tracking-tight text-slate-900">Affiliate Agent</h2>
+              <span className="text-[10px] text-slate-400 font-medium">SaaS Growth Engine</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowTour(true)}
+              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+              title="Guida Rapida"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-slate-700 hover:bg-slate-100 rounded-lg transition"
+              aria-label="Toggle Menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Quick Scrollable Navigation Tabs */}
+        <div className="flex items-center gap-1.5 px-3 py-2 border-t border-slate-100 overflow-x-auto no-scrollbar text-xs">
+          <button
+            onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'dashboard' ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => { setActiveTab('leads'); setMobileMenuOpen(false); }}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'leads' ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            Contacts ({totalLeadsCount})
+          </button>
+          <button
+            onClick={() => { setActiveTab('responses'); setMobileMenuOpen(false); }}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'responses' ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            Inbound
+          </button>
+          <button
+            onClick={() => { setActiveTab('outreach'); setMobileMenuOpen(false); }}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'outreach' ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Automation
+          </button>
+          <button
+            onClick={() => { setActiveTab('config'); setMobileMenuOpen(false); }}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'config' ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Config
+          </button>
+          <button
+            onClick={() => { setActiveTab('instructions'); setMobileMenuOpen(false); }}
+            className={`px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'instructions' ? 'bg-slate-900 text-white font-semibold' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Guida
+          </button>
+        </div>
+
+        {/* Mobile Dropdown Menu when toggled */}
+        {mobileMenuOpen && (
+          <div className="p-3 border-t border-slate-100 space-y-1 bg-slate-50/80">
+            <button
+              onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'dashboard' ? 'bg-slate-200 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-white'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4 text-slate-500" />
+              Dashboard Panoramica
+            </button>
+            <button
+              onClick={() => { setActiveTab('leads'); setMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'leads' ? 'bg-slate-200 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Users className="w-4 h-4 text-slate-500" />
+                Contatti & Lead
+              </div>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                {totalLeadsCount}
+              </span>
+            </button>
+            <button
+              onClick={() => { setActiveTab('responses'); setMobileMenuOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'responses' ? 'bg-slate-200 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-white'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <MessageSquare className="w-4 h-4 text-slate-500" />
+                Inbound & Risposte
+              </div>
+              {leads.filter((l) => l.status === 'replied').length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">
+                  {leads.filter((l) => l.status === 'replied').length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => { setActiveTab('outreach'); setMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeTab === 'outreach' ? 'bg-slate-200 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-white'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-slate-500" />
+              Automazione Outreach
+            </button>
+            <div className="pt-2 border-t border-slate-200 space-y-1">
+              <button
+                onClick={() => { setActiveTab('config'); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                  activeTab === 'config' ? 'bg-slate-200 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                <Settings className="w-4 h-4 text-slate-500" />
+                Configurazione
+              </button>
+              <button
+                onClick={() => { setActiveTab('instructions'); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition ${
+                  activeTab === 'instructions' ? 'bg-slate-200 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 text-slate-500" />
+                Istruzioni & Info
+              </button>
+            </div>
+          </div>
+        )}
+      </nav>
+
+      {/* 2. Desktop Left Sidebar (Visible only on md+ screens) */}
+      <aside className="hidden md:flex md:w-64 bg-white border-r border-slate-200 flex-col justify-between z-20 shrink-0 overflow-hidden">
+        <div className="flex flex-col overflow-y-auto">
           {/* Brand Logo & Name */}
           <div className="p-6 border-b border-slate-100 flex items-center gap-3">
             <div className="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-xs">
@@ -382,7 +557,7 @@ export default function App() {
         </div>
 
         {/* Footer User Profile & Quick Tour */}
-        <div className="p-4 border-t border-slate-100 space-y-3">
+        <div className="p-4 border-t border-slate-100 space-y-3 shrink-0">
           <button
             onClick={() => setShowTour(true)}
             className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-medium transition flex items-center justify-center gap-2 border border-slate-200"
@@ -393,236 +568,240 @@ export default function App() {
         </div>
       </aside>
 
-      {/* 2. Main Content Area (Light Neutral Gray) */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        
-        {/* Top Sticky Header */}
-        <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 sticky top-0 z-10">
-          <div>
-            <h1 className="text-base font-bold text-slate-900 tracking-tight capitalize">
-              {activeTab === 'leads' ? 'Contacts & Leads' : activeTab === 'outreach' ? 'Automation & Outreach' : activeTab}
-            </h1>
-          </div>
+      {/* 3. Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#F8FAFC]">
+        {/* Top Header */}
+        <header className="bg-white border-b border-slate-200 shrink-0 z-10 w-full overflow-hidden">
+          <div className="px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight capitalize">
+                {activeTab === 'leads' ? 'Contacts & Leads' : activeTab === 'outreach' ? 'Automation & Outreach' : activeTab}
+              </h1>
+            </div>
 
-          <div className="flex items-center gap-2.5">
-            {/* Direct Upload CSV from PC Button */}
-            <button
-              onClick={() => setIsCSVModalOpen(true)}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition flex items-center gap-2 cursor-pointer"
-              title="Carica un file CSV dal tuo computer"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Carica CSV (PC)
-            </button>
-
-            {/* Direct Delete Mock Data Button */}
-            {mockLeadsCount > 0 && (
+            <div className="flex items-center flex-wrap gap-2">
+              {/* Direct Upload CSV from PC Button */}
               <button
-                onClick={() => setIsClearModalOpen(true)}
-                className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
-                title="Cancella i contatti generati automaticamente"
+                onClick={() => setIsCSVModalOpen(true)}
+                className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition flex items-center gap-1.5 sm:gap-2 cursor-pointer"
+                title="Carica un file CSV dal tuo computer"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                Cancella Dati Finti ({mockLeadsCount})
+                <Upload className="w-3.5 h-3.5" />
+                Carica CSV (PC)
               </button>
-            )}
 
-            <button
-              onClick={handleGenerateLeads}
-              className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium shadow-xs transition flex items-center gap-1.5"
-              title="Genera contatti di esempio per testare"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-              Dati Demo
-            </button>
+              {/* Direct Delete Mock Data Button */}
+              {mockLeadsCount > 0 && (
+                <button
+                  onClick={() => setIsClearModalOpen(true)}
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                  title="Cancella i contatti generati automaticamente"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  Cancella Dati Finti ({mockLeadsCount})
+                </button>
+              )}
 
-            <button
-              onClick={() => setActiveTab('outreach')}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4 text-slate-700" />
-              Create Workflow
-            </button>
+              <button
+                onClick={handleGenerateLeads}
+                className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium shadow-xs transition flex items-center gap-1.5"
+                title="Genera contatti di esempio per testare"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                Dati Demo
+              </button>
+
+              <button
+                onClick={() => setActiveTab('outreach')}
+                className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4 text-slate-700" />
+                Create Workflow
+              </button>
+            </div>
           </div>
         </header>
 
-        <div className="p-8 space-y-8 max-w-7xl mx-auto w-full">
+        {/* Scrollable container for KPI section and tab content */}
+        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
           
-          {/* 3. KPI Cards: 4 Horizontal Rectangular Adjacent Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 4. KPI Cards: 4 Horizontal Rectangular Adjacent Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full shrink-0">
             
             {/* Card 1: Total Workflows */}
-            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs flex flex-col justify-between">
+            <div className="bg-white border border-slate-200/90 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col justify-between overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-slate-500">Total Contacts</span>
-                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                   <Workflow className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold tracking-tight text-slate-900">
+              <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                 {totalLeadsCount}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">
+              <div className="text-[11px] text-slate-400 mt-1 truncate">
                 {csvLeadsCount > 0 ? `${csvLeadsCount} da CSV, ${mockLeadsCount} demo` : `${mockLeadsCount} demo`}
               </div>
             </div>
 
             {/* Card 2: Active */}
-            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs flex flex-col justify-between">
+            <div className="bg-white border border-slate-200/90 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col justify-between overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-slate-500">Active</span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold tracking-tight text-slate-900">
+              <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                 {activeWorkflowsCount}
               </div>
-              <div className="text-[11px] text-emerald-600 font-medium mt-1">Flussi attivi & contattati</div>
+              <div className="text-[11px] text-emerald-600 font-medium mt-1 truncate">Flussi attivi & contattati</div>
             </div>
 
             {/* Card 3: Total Enrolled */}
-            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs flex flex-col justify-between">
+            <div className="bg-white border border-slate-200/90 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col justify-between overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-slate-500">Total Enrolled</span>
-                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                   <Users className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold tracking-tight text-slate-900">
+              <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                 {totalEnrolledCount}
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">Lead selezionati per batch</div>
+              <div className="text-[11px] text-slate-400 mt-1 truncate">Lead selezionati per batch</div>
             </div>
 
             {/* Card 4: Won Partners / Conversion */}
-            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs flex flex-col justify-between">
+            <div className="bg-white border border-slate-200/90 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col justify-between overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-slate-500">Partners Won</span>
-                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
               </div>
-              <div className="text-2xl font-bold tracking-tight text-slate-900">
+              <div className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                 {wonPartnersCount}
               </div>
-              <div className="text-[11px] text-amber-600 font-medium mt-1">Accordi conclusi</div>
+              <div className="text-[11px] text-amber-600 font-medium mt-1 truncate">Accordi conclusi</div>
             </div>
 
           </div>
 
-          {/* 4. Tab Content: White Main Section Container */}
-          {activeTab === 'leads' && (
-            <div className="space-y-4">
-              <LeadFilters
-                platformFilter={platformFilter}
-                setPlatformFilter={setPlatformFilter}
-                sourceFilter={sourceFilter}
-                setSourceFilter={setSourceFilter}
-                languageFilter={languageFilter}
-                setLanguageFilter={setLanguageFilter}
-                minScoreFilter={minScoreFilter}
-                setMinScoreFilter={setMinScoreFilter}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onSelectAllAboveThreshold={handleSelectAllAboveThreshold}
-                onDeselectAll={handleDeselectAll}
-                onRefreshLeads={handleGenerateLeads}
-                totalLeads={leads.length}
-                selectedCount={totalEnrolledCount}
-                mockLeadsCount={mockLeadsCount}
-                onOpenCSVModal={() => setIsCSVModalOpen(true)}
-                onOpenClearModal={() => setIsClearModalOpen(true)}
-                onDeleteSelected={handleDeleteSelectedLeads}
-              />
+          {/* 5. Tab Content: Container */}
+          <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
+            {activeTab === 'leads' && (
+              <div className="space-y-4 flex flex-col w-full overflow-hidden">
+                <LeadFilters
+                  platformFilter={platformFilter}
+                  setPlatformFilter={setPlatformFilter}
+                  sourceFilter={sourceFilter}
+                  setSourceFilter={setSourceFilter}
+                  languageFilter={languageFilter}
+                  setLanguageFilter={setLanguageFilter}
+                  minScoreFilter={minScoreFilter}
+                  setMinScoreFilter={setMinScoreFilter}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  onSelectAllAboveThreshold={handleSelectAllAboveThreshold}
+                  onDeselectAll={handleDeselectAll}
+                  onRefreshLeads={handleGenerateLeads}
+                  totalLeads={leads.length}
+                  selectedCount={totalEnrolledCount}
+                  mockLeadsCount={mockLeadsCount}
+                  onOpenCSVModal={() => setIsCSVModalOpen(true)}
+                  onOpenClearModal={() => setIsClearModalOpen(true)}
+                  onDeleteSelected={handleDeleteSelectedLeads}
+                />
 
-              <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-bold text-slate-900">Tabella Lead & Creator</span>
-                    <span className="text-xs text-slate-400">({filteredLeads.length} filtrati)</span>
-                    {csvLeadsCount > 0 && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
-                        {csvLeadsCount} da CSV
-                      </span>
-                    )}
+                <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden flex flex-col">
+                  <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center flex-wrap gap-2.5">
+                      <span className="text-xs font-bold text-slate-900">Tabella Lead & Creator</span>
+                      <span className="text-xs text-slate-400">({filteredLeads.length} filtrati)</span>
+                      {csvLeadsCount > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                          {csvLeadsCount} da CSV
+                        </span>
+                      )}
+                      {mockLeadsCount > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-200">
+                          {mockLeadsCount} demo
+                        </span>
+                      )}
+                    </div>
+
                     {mockLeadsCount > 0 && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-200">
-                        {mockLeadsCount} demo
-                      </span>
+                      <button
+                        type="button"
+                        onClick={handleClearMockOnly}
+                        className="text-xs text-rose-600 hover:text-rose-700 hover:underline font-medium flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Cancella solo dati finti
+                      </button>
                     )}
                   </div>
-
-                  {mockLeadsCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleClearMockOnly}
-                      className="text-xs text-rose-600 hover:text-rose-700 hover:underline font-medium flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      Cancella solo dati finti
-                    </button>
-                  )}
+                  <LeadTable
+                    leads={filteredLeads}
+                    onToggleSelect={handleToggleSelect}
+                    onSelectAll={handleSelectAll}
+                    onOpenOutreachForLead={handleOpenOutreachForLead}
+                    onDeleteLead={handleDeleteLead}
+                    onOpenCSVModal={() => setIsCSVModalOpen(true)}
+                    onRegenerateMock={handleGenerateLeads}
+                  />
                 </div>
-                <LeadTable
-                  leads={filteredLeads}
-                  onToggleSelect={handleToggleSelect}
-                  onSelectAll={handleSelectAll}
-                  onOpenOutreachForLead={handleOpenOutreachForLead}
-                  onDeleteLead={handleDeleteLead}
-                  onOpenCSVModal={() => setIsCSVModalOpen(true)}
-                  onRegenerateMock={handleGenerateLeads}
+              </div>
+            )}
+
+            {activeTab === 'outreach' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+                <OutreachPanel
+                  leads={leads}
+                  config={config}
+                  onUpdateLeadMessage={handleUpdateLeadMessage}
+                  onSendMessages={handleSendMessages}
                 />
               </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === 'outreach' && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-              <OutreachPanel
-                leads={leads}
-                config={config}
-                onUpdateLeadMessage={handleUpdateLeadMessage}
-                onSendMessages={handleSendMessages}
-              />
-            </div>
-          )}
+            {activeTab === 'responses' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+                <ResponsesList
+                  leads={leads}
+                  onSimulateIncomingResponses={handleSimulateIncomingResponses}
+                  onTakeAction={handleTakeAction}
+                  onCloseOpportunity={onCloseOpportunity}
+                />
+              </div>
+            )}
 
-          {activeTab === 'responses' && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-              <ResponsesList
-                leads={leads}
-                onSimulateIncomingResponses={handleSimulateIncomingResponses}
-                onTakeAction={handleTakeAction}
-                onCloseOpportunity={onCloseOpportunity}
-              />
-            </div>
-          )}
+            {activeTab === 'dashboard' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+                <DashboardKPIs leads={leads} />
+              </div>
+            )}
 
-          {activeTab === 'dashboard' && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-              <DashboardKPIs leads={leads} />
-            </div>
-          )}
+            {activeTab === 'config' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+                <ProductConfigForm
+                  config={config}
+                  onSaveConfig={setConfig}
+                  onGenerateLeads={handleGenerateLeads}
+                  onUploadCSV={handleUploadCSV}
+                  leadsCount={leads.length}
+                  onOpenCSVModal={() => setIsCSVModalOpen(true)}
+                />
+              </div>
+            )}
 
-          {activeTab === 'config' && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-              <ProductConfigForm
-                config={config}
-                onSaveConfig={setConfig}
-                onGenerateLeads={handleGenerateLeads}
-                onUploadCSV={handleUploadCSV}
-                leadsCount={leads.length}
-                onOpenCSVModal={() => setIsCSVModalOpen(true)}
-              />
-            </div>
-          )}
-
-          {activeTab === 'instructions' && (
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-              <InstructionsPage />
-            </div>
-          )}
+            {activeTab === 'instructions' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+                <InstructionsPage />
+              </div>
+            )}
+          </div>
 
         </div>
       </main>

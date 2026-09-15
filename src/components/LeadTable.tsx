@@ -120,8 +120,24 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                         </a>
                       )}
                     </div>
-                    {lead.email && (
-                      <span className="text-[11px] text-slate-600 font-mono">{lead.email}</span>
+                    {lead.email ? (
+                      <div className="flex items-center gap-2 flex-wrap my-0.5">
+                        <span className="text-[11px] text-slate-600 font-mono">{lead.email}</span>
+                        {lead.emailQuality === 'Valida' && (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                            Email Sicura
+                          </span>
+                        )}
+                        {lead.emailQuality === 'Sospetta' && (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                            Rischio Spam
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 italic">Nessuna email</span>
                     )}
                     <span className="text-[11px] text-slate-500 truncate max-w-xs">{lead.shortNotes}</span>
                   </div>

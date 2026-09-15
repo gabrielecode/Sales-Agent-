@@ -164,20 +164,46 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
         {/* Right: Active Lead Message Editor */}
         {currentLead && (
           <div className="lg:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
               <div>
-                <h4 className="text-sm font-bold text-slate-900">{currentLead.shopName}</h4>
-                <p className="text-xs text-slate-500">{currentLead.email ? `Destinatario: ${currentLead.email}` : 'Nessuna email salvata'}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-sm font-bold text-slate-900">{currentLead.shopName}</h4>
+                  {currentLead.toneOfVoice && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Tono: {currentLead.toneOfVoice} ({currentLead.toneOfVoice === 'Informale' ? 'Tu' : 'Lei'})
+                    </span>
+                  )}
+                  {currentLead.emailQuality === 'Valida' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Email Sicura
+                    </span>
+                  )}
+                  {currentLead.emailQuality === 'Sospetta' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                      Rischio Spam
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {currentLead.email ? `Destinatario: ${currentLead.email}` : 'Nessuna email salvata'} • Settore: {currentLead.industry || 'Non specificato'}
+                </p>
               </div>
 
-              <button
-                onClick={handleGenerateMessageForCurrent}
-                disabled={isGenerating}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                Rigenera con IA
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="hidden md:inline-flex items-center text-[10px] px-2 py-1 rounded bg-white text-slate-500 border border-slate-200 font-medium">
+                  Formula: Hook + Body + CTA
+                </span>
+                <button
+                  onClick={handleGenerateMessageForCurrent}
+                  disabled={isGenerating}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Rigenera con IA
+                </button>
+              </div>
             </div>
 
             <div>

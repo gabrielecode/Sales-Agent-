@@ -42,6 +42,39 @@ function splitCSVLine(line: string, delimiter: string): string[] {
   return values;
 }
 
+/**
+ * Email Anti-Spam validator regex
+ * Checks if the email format is strictly valid, missing or suspicious.
+ */
+export function validateEmailQuality(email?: string): 'Valida' | 'Sospetta' | 'Mancante' {
+  if (!email || !email.trim()) {
+    return 'Mancante';
+  }
+  const clean = email.trim();
+  // Valid email format: valid local-part + @ + domain + dot + at least 2 char TLD
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (emailRegex.test(clean)) {
+    return 'Valida';
+  }
+  return 'Sospetta';
+}
+
+/**
+ * Tone of voice cultural adaptation:
+ * - 'Informale' (Tu / Ciao) for Software, Marketing, SaaS.
+ * - 'Formale' (Lei / Buongiorno) for Servizi, Enterprise or empty fields.
+ */
+export function determineToneOfVoice(industry?: string): 'Formale' | 'Informale' {
+  if (!industry || !industry.trim()) {
+    return 'Formale';
+  }
+  const ind = industry.toLowerCase();
+  if (ind.includes('software') || ind.includes('marketing') || ind.includes('saas')) {
+    return 'Informale';
+  }
+  return 'Formale';
+}
+
 export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
   // Strip UTF-8 BOM if present
   const cleanText = csvText.replace(/^\uFEFF/, '').trim();
@@ -95,17 +128,39 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
     else if (pLower.includes('instagram') || pLower.includes('ig')) platform = 'Instagram';
     else if (pLower.includes('linkedin')) platform = 'LinkedIn';
 
-    const langRaw = getVal('language', 'lingua', 'lang').toLowerCase();
-    let language: Language = 'it';
-    if (langRaw.includes('en') || langRaw.includes('ingl')) language = 'en';
-    else if (langRaw.includes('de') || langRaw.includes('ted')) language = 'de';
-    else if (langRaw.includes('fr') || langRaw.includes('fran')) language = 'fr';
-
     const city = getVal('city', 'citta', 'città', 'comune', 'luogo', 'location') || 'Svizzera';
     const canton = getVal('canton', 'cantone', 'provincia', 'regione', 'paese', 'country') || 'CH';
     const industry = getVal('industry', 'settore', 'categoria', 'category', 'nicchia') || 'E-Commerce';
     const notes = getVal('notes', 'note', 'descrizione', 'description', 'bio', 'dettagli') || 'Importato da CSV';
     const url = getVal('url', 'website', 'sito', 'link', 'shopurl', 'profilo') || '';
+
+    const langRaw = getVal('language', 'lingua', 'lang').toLowerCase();
+    let language: Language = 'it';
+    if (langRaw.includes('en') || langRaw.includes('ingl')) {
+      language = 'en';
+    } else if (langRaw.includes('de') || langRaw.includes('ted')) {
+      language = 'de';
+    } else if (langRaw.includes('fr') || langRaw.includes('fran')) {
+      language = 'fr';
+    } else if (langRaw.includes('it') || langRaw.includes('ita')) {
+      language = 'it';
+    } else {
+      // Canton cultural adaptation for language:
+      const cUpper = canton.toUpperCase().trim();
+      if (['ZH', 'BE', 'BS', 'BL', 'LU', 'SG', 'AG', 'SO', 'SH', 'TG', 'ZG', 'GR', 'AR', 'AI', 'GL', 'NW', 'OW', 'SZ', 'UR'].includes(cUpper)) {
+        language = 'de';
+      } else if (['GE', 'VD', 'VS', 'NE', 'JU', 'FR'].includes(cUpper)) {
+        language = 'fr';
+      } else if (['TI', 'IT'].includes(cUpper)) {
+        language = 'it';
+      }
+    }
+
+    // Step 1: Anti-Spam email validation
+    const emailQuality = validateEmailQuality(email);
+
+    // Step 2: Tone of voice calculation
+    const toneOfVoice = determineToneOfVoice(industry);
 
     const productsCount = parseInt(getVal('products', 'prodotti', 'articoli', 'items') || '10', 10) || 10;
     const reviewsCount = parseInt(getVal('reviews', 'recensioni', 'feedback') || '15', 10) || 15;
@@ -119,6 +174,8 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
       platform,
       language,
       email,
+      emailQuality,
+      toneOfVoice,
       city,
       canton,
       industry,

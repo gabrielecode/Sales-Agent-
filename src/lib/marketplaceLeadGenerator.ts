@@ -1,5 +1,6 @@
 import { Lead, ProductConfig, Platform, Language } from '../types';
 import { calculateLeadScore } from './leadScoring';
+import { validateEmailQuality, determineToneOfVoice } from './csvParser';
 
 const SWISS_CITIES = [
   { city: 'Zurigo', canton: 'ZH', lang: 'de' as Language },
@@ -47,6 +48,8 @@ export function generateMarketplaceLeads(config: ProductConfig): Lead[] {
       canton: geo.canton,
       industry: tmpl.industry,
       email: `contact@${tmpl.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.ch`,
+      emailQuality: 'Valida',
+      toneOfVoice: determineToneOfVoice(tmpl.industry),
       businessSignals: {
         numProducts: products,
         numReviews: reviews,

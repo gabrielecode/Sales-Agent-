@@ -17,10 +17,10 @@ export const DashboardKPIs: React.FC<DashboardKPIsProps> = ({ leads }) => {
   const conversionRate = contacted > 0 ? Math.round((won / contacted) * 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col w-full overflow-hidden">
       {/* 3 Metric Summary Boxes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2 flex flex-col justify-between overflow-hidden">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase tracking-wider">Tasso di Risposta</span>
             <TrendingUp className="w-4 h-4 text-purple-600" />
@@ -29,7 +29,7 @@ export const DashboardKPIs: React.FC<DashboardKPIsProps> = ({ leads }) => {
           <p className="text-[11px] text-slate-500">{replied} risposte su {contacted} invii</p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2 flex flex-col justify-between overflow-hidden">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase tracking-wider">Conversione a Partner</span>
             <Trophy className="w-4 h-4 text-emerald-600" />
@@ -38,7 +38,7 @@ export const DashboardKPIs: React.FC<DashboardKPIsProps> = ({ leads }) => {
           <p className="text-[11px] text-slate-500">{won} partner chiusi con successo</p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2 flex flex-col justify-between overflow-hidden">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase tracking-wider">Fatturato Stimato / Payout</span>
             <DollarSign className="w-4 h-4 text-blue-600" />
@@ -49,7 +49,7 @@ export const DashboardKPIs: React.FC<DashboardKPIsProps> = ({ leads }) => {
       </div>
 
       {/* Funnel Progress Section */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4 flex flex-col overflow-hidden">
         <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Funnel di Conversione Lead</h4>
 
         <div className="space-y-3 text-xs">

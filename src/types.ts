@@ -62,6 +62,8 @@ export interface Lead {
   city?: string;
   canton?: string;
   industry?: string;
+  toneOfVoice?: 'Formale' | 'Informale';
+  emailQuality: 'Valida' | 'Sospetta' | 'Mancante';
   businessSignals: BusinessSignals;
   hasNeedSignal: boolean;
   shortNotes: string;
