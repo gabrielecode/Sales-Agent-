@@ -70,7 +70,7 @@ async function classifyTextWithOpenRouter(
   apiKey?: string,
   model?: string
 ): Promise<{ intent: IntentClassification; reason: string }> {
-  const key = (apiKey || process.env.OPENROUTER_API_KEY || "").trim();
+  const key = (process.env.OPENROUTER_API_KEY || apiKey || "").trim();
   const selectedModel = (model || "meta-llama/llama-3-8b-instruct:free").trim();
 
   if (!key) {
@@ -140,7 +140,7 @@ async function generateMessageInternal(
   config: any,
   stage: FunnelStage = "awareness"
 ): Promise<{ subject: string; body: string }> {
-  const apiKey = (config?.openRouterApiKey || process.env.OPENROUTER_API_KEY || "").trim();
+  const apiKey = (process.env.OPENROUTER_API_KEY || config?.openRouterApiKey || "").trim();
   const model = (config?.openRouterModel || "meta-llama/llama-3-8b-instruct:free").trim();
   const tone = lead.toneOfVoice || "Formale";
 
@@ -254,11 +254,11 @@ async function sendEmailInternal(
   body: string,
   config?: any
 ): Promise<{ success: boolean; simulated: boolean; messageId?: string; error?: string }> {
-  const apiKey = (config?.resendApiKey || process.env.RESEND_API_KEY || "").trim();
-  const fromName = (config?.emailFromName || process.env.EMAIL_FROM_NAME || "Sales Agent").trim();
-  const fromAddress = (config?.emailFromAddress || process.env.EMAIL_FROM_ADDRESS || "onboarding@resend.dev").trim();
+  const apiKey = (process.env.RESEND_API_KEY || config?.resendApiKey || "").trim();
+  const fromName = (process.env.EMAIL_FROM_NAME || config?.emailFromName || "Sales Agent").trim();
+  const fromAddress = (process.env.EMAIL_FROM_ADDRESS || config?.emailFromAddress || "onboarding@resend.dev").trim();
   const formattedFrom = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
-  const replyToAddress = (config?.emailReplyTo || process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "rispondi@inbound.sititicino.ch").trim();
+  const replyToAddress = (process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || config?.emailReplyTo || "rispondi@inbound.sititicino.ch").trim();
 
   if (!apiKey) {
     return {
@@ -324,6 +324,24 @@ async function startServer() {
     res.json({
       status: "ok",
       inboundEventsCount: inboundEvents.length,
+    });
+  });
+
+  // Endpoint to check server-side configuration status (booleans and public info only)
+  app.get("/api/config-status", (req, res) => {
+    const openRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim() !== "");
+    const resendConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.trim() !== "");
+    const emailFromConfigured = Boolean(process.env.EMAIL_FROM_ADDRESS && process.env.EMAIL_FROM_ADDRESS.trim() !== "");
+    const emailReplyToConfigured = Boolean((process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS) && (process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "").trim() !== "");
+
+    res.json({
+      openRouterConfigured,
+      resendConfigured,
+      emailFromConfigured,
+      emailFromAddress: process.env.EMAIL_FROM_ADDRESS || "",
+      emailFromDisplay: process.env.EMAIL_FROM_NAME ? `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev'}>` : (process.env.EMAIL_FROM_ADDRESS || ""),
+      emailReplyToConfigured,
+      emailReplyToAddress: process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "",
     });
   });
 

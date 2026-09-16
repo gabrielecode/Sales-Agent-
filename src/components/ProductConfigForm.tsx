@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ProductConfig, OfferType } from '../types';
 import { Settings, Save, Upload, Zap, CheckCircle2, Bot, Play, Layers, Sparkles, Clock, BookOpen, FileCheck, Award } from 'lucide-react';
 
@@ -44,6 +44,22 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
   });
   const [csvInput, setCsvInput] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [serverStatus, setServerStatus] = useState<{
+    openRouterConfigured: boolean;
+    resendConfigured: boolean;
+    emailFromConfigured: boolean;
+    emailFromAddress: string;
+    emailFromDisplay: string;
+    emailReplyToConfigured: boolean;
+    emailReplyToAddress: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/config-status')
+      .then((res) => res.json())
+      .then((data) => setServerStatus(data))
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,14 +216,25 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 OpenRouter API Key (per generazione testi con LLM reali)
               </label>
-              <input
-                type="password"
-                placeholder="sk-or-v1-..."
-                value={formData.openRouterApiKey || ''}
-                onChange={(e) => setFormData({ ...formData, openRouterApiKey: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900"
-              />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Se lasci vuoto, verrà utilizzato il generatore locale ottimizzato.</span>
+              {serverStatus?.openRouterConfigured ? (
+                <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
+                  <span className="font-semibold">✅ Configurata su Vercel (server-side)</span>
+                  <span className="text-[10px] text-emerald-600 font-mono">OPENROUTER_API_KEY attiva</span>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="password"
+                    placeholder="sk-or-v1-..."
+                    value={formData.openRouterApiKey || ''}
+                    onChange={(e) => setFormData({ ...formData, openRouterApiKey: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900"
+                  />
+                  <span className="text-[10px] text-amber-600 mt-0.5 block">
+                    ⚠️ Chiave inserita qui verrà salvata solo nel tuo browser (localStorage), usala solo per test locali. In produzione configura le variabili d'ambiente su Vercel.
+                  </span>
+                </>
+              )}
             </div>
 
             <div>
@@ -224,54 +251,76 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 Resend API Key (per invio reale email)
               </label>
-              <input
-                type="password"
-                placeholder="re_..."
-                value={formData.resendApiKey || ''}
-                onChange={(e) => setFormData({ ...formData, resendApiKey: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900"
-              />
+              {serverStatus?.resendConfigured ? (
+                <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
+                  <span className="font-semibold">✅ Configurata su Vercel (server-side)</span>
+                  <span className="text-[10px] text-emerald-600 font-mono">RESEND_API_KEY attiva</span>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="password"
+                    placeholder="re_..."
+                    value={formData.resendApiKey || ''}
+                    onChange={(e) => setFormData({ ...formData, resendApiKey: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900"
+                  />
+                  <span className="text-[10px] text-amber-600 mt-0.5 block">
+                    ⚠️ Chiave inserita qui verrà salvata solo nel tuo browser (localStorage), usala solo per test locali. In produzione configura le variabili d'ambiente su Vercel.
+                  </span>
+                </>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                Nome Mittente (From Name)
+                Mittente Email (From)
               </label>
-              <input
-                type="text"
-                placeholder="Sales Agent"
-                value={formData.emailFromName || ''}
-                onChange={(e) => setFormData({ ...formData, emailFromName: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Indirizzo Email Mittente (From Address)
-              </label>
-              <input
-                type="text"
-                placeholder="noreply@sititicino.ch"
-                value={formData.emailFromAddress || ''}
-                onChange={(e) => setFormData({ ...formData, emailFromAddress: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
-              />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Usa EMAIL_FROM_ADDRESS o onboarding@resend.dev come fallback se vuoto.</span>
+              {serverStatus?.emailFromConfigured ? (
+                <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
+                  <span className="font-medium">Mittente: {serverStatus.emailFromDisplay || serverStatus.emailFromAddress} — configurato su Vercel</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Nome Mittente (es. Sales Agent)"
+                    value={formData.emailFromName || ''}
+                    onChange={(e) => setFormData({ ...formData, emailFromName: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900 mb-1"
+                  />
+                  <input
+                    type="text"
+                    placeholder="noreply@sititicino.ch"
+                    value={formData.emailFromAddress || ''}
+                    onChange={(e) => setFormData({ ...formData, emailFromAddress: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Usa EMAIL_FROM_ADDRESS o onboarding@resend.dev come fallback se vuoto.</span>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 Indirizzo di Risposta (Reply-To)
               </label>
-              <input
-                type="text"
-                placeholder="risposte@inbound.sititicino.ch"
-                value={formData.emailReplyTo || ''}
-                onChange={(e) => setFormData({ ...formData, emailReplyTo: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
-              />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Indirizzo dove arrivano le risposte dei lead (dominio dedicato alla ricezione, diverso dal mittente).</span>
+              {serverStatus?.emailReplyToConfigured ? (
+                <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
+                  <span className="font-medium">Reply-To: {serverStatus.emailReplyToAddress} — configurato su Vercel</span>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="risposte@inbound.sititicino.ch"
+                    value={formData.emailReplyTo || ''}
+                    onChange={(e) => setFormData({ ...formData, emailReplyTo: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Indirizzo dove arrivano le risposte dei lead (dominio dedicato alla ricezione, diverso dal mittente).</span>
+                </>
+              )}
             </div>
           </div>
         </div>
