@@ -10,7 +10,6 @@ export const DEFAULT_CONFIG: ProductConfig = {
   platforms: ['Etsy', 'Amazon KDP', 'Shopify', 'Web'],
   languages: ['it', 'de', 'fr', 'en'],
   minLeadScore: 65,
-  autoOutreach: false,
   dailyOutreachLimit: 25,
   openRouterModel: 'meta-llama/llama-3-8b-instruct:free',
 };

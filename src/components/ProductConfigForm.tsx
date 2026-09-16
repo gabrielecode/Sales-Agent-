@@ -124,6 +124,33 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Limite Giornaliero Invii</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={formData.dailyOutreachLimit || 25}
+                  onChange={(e) => setFormData({ ...formData, dailyOutreachLimit: Math.max(1, parseInt(e.target.value) || 25) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Blocca l'invio al superamento della quota odierna.</span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Score Minimo Lead</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={formData.minLeadScore || 65}
+                  onChange={(e) => setFormData({ ...formData, minLeadScore: parseInt(e.target.value) || 60 })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Soglia per identificare profili prioritari.</span>
+              </div>
+            </div>
           </div>
 
           {/* Right Column: AI & Integrations */}
@@ -183,11 +210,11 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
         </div>
 
         {/* Save button bar */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-xs"
+              className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
               Salva Configurazione
@@ -202,41 +229,41 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           <button
             type="button"
             onClick={onGenerateLeads}
-            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center gap-2 shadow-xs"
+            className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
           >
             <Zap className="w-3.5 h-3.5 text-amber-500" />
-            Rigenera Lead con questi Parametri
+            Rigenera Dati Demo con questi Parametri
           </button>
         </div>
       </form>
 
       {/* CSV Import Section */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4">
         <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Upload className="w-4 h-4 text-slate-700" />
+          <Upload className="w-4 h-4 text-slate-700 shrink-0" />
           Importazione Lead Reali via File CSV
         </h4>
         <p className="text-xs text-slate-500">
-          Puoi importare lead reali esportati da Google Sheets, Hunter.io o CRM. Colonne supportate: <code>name, email, platform, city, canton, url, notes</code>.
+          Puoi importare lead reali esportati da Google Sheets, Hunter.io o CRM. Colonne supportate: <code className="bg-slate-200/70 px-1 py-0.5 rounded text-[11px]">name, email, platform, city, canton, url, notes</code>.
         </p>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {onOpenCSVModal ? (
             <button
               type="button"
               onClick={onOpenCSVModal}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-2"
+              className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition cursor-pointer shadow-xs flex items-center justify-center gap-2"
             >
               <Upload className="w-3.5 h-3.5" />
               Apri Strumento Caricamento CSV da PC
             </button>
           ) : (
-            <label className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer shadow-xs">
+            <label className="w-full sm:w-auto text-center px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer shadow-xs">
               Seleziona File CSV da Computer
               <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
             </label>
           )}
-          <span className="text-xs text-slate-400">oppure incolla il testo CSV sotto:</span>
+          <span className="text-xs text-slate-400 text-center sm:text-left">oppure incolla il testo CSV sotto:</span>
         </div>
 
         <textarea
@@ -251,7 +278,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           <button
             type="button"
             onClick={handleCsvSubmit}
-            className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold transition"
+            className="w-full sm:w-auto px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold transition cursor-pointer"
           >
             Carica CSV
           </button>

@@ -191,7 +191,8 @@ export default function App() {
               ...l,
               status: 'contacted',
               message: {
-                ...l.message!,
+                subject: l.message?.subject || `Collaborazione con ${config.productName}`,
+                body: l.message?.body || '',
                 sentAt: new Date().toLocaleTimeString(),
               },
             }
@@ -284,7 +285,7 @@ export default function App() {
   const csvLeadsCount = leads.filter((l) => l.source === 'csv').length;
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-hidden">
+    <div className="flex flex-col md:flex-row min-h-screen md:h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-x-hidden md:overflow-hidden">
       {/* 1. Mobile Top Navigation Bar (Visible only on < md screens) */}
       <nav className="md:hidden flex flex-col w-full bg-white border-b border-slate-200 shrink-0 z-30 overflow-hidden">
         <div className="px-4 py-3 flex items-center justify-between">
@@ -569,9 +570,9 @@ export default function App() {
       </aside>
 
       {/* 3. Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#F8FAFC]">
+      <main className="flex-1 flex flex-col min-w-0 md:h-full md:overflow-hidden bg-[#F8FAFC]">
         {/* Top Header */}
-        <header className="bg-white border-b border-slate-200 shrink-0 z-10 w-full overflow-hidden">
+        <header className="bg-white border-b border-slate-200 shrink-0 z-10 w-full">
           <div className="px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight capitalize">
@@ -604,7 +605,7 @@ export default function App() {
 
               <button
                 onClick={handleGenerateLeads}
-                className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium shadow-xs transition flex items-center gap-1.5"
+                className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                 title="Genera contatti di esempio per testare"
               >
                 <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
@@ -613,7 +614,7 @@ export default function App() {
 
               <button
                 onClick={() => setActiveTab('outreach')}
-                className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+                className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4 text-slate-700" />
                 Create Workflow
@@ -623,7 +624,7 @@ export default function App() {
         </header>
 
         {/* Scrollable container for KPI section and tab content */}
-        <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
+        <div className="flex-1 flex flex-col md:overflow-y-auto md:overflow-x-hidden p-3.5 sm:p-6 lg:p-8 space-y-5 sm:space-y-8 max-w-7xl mx-auto w-full custom-scrollbar">
           
           {/* 4. KPI Cards: 4 Horizontal Rectangular Adjacent Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full shrink-0">

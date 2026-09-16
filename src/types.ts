@@ -16,7 +16,6 @@ export interface ProductConfig {
   platforms: Platform[];
   languages: Language[];
   minLeadScore: number;
-  autoOutreach: boolean;
   dailyOutreachLimit: number;
   openRouterApiKey?: string;
   openRouterModel?: string;

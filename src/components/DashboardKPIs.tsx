@@ -17,39 +17,39 @@ export const DashboardKPIs: React.FC<DashboardKPIsProps> = ({ leads }) => {
   const conversionRate = contacted > 0 ? Math.round((won / contacted) * 100) : 0;
 
   return (
-    <div className="space-y-6 flex flex-col w-full overflow-hidden">
+    <div className="space-y-4 sm:space-y-6 flex flex-col w-full">
       {/* 3 Metric Summary Boxes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2 flex flex-col justify-between overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 space-y-1.5 sm:space-y-2 flex flex-col justify-between shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase tracking-wider">Tasso di Risposta</span>
             <TrendingUp className="w-4 h-4 text-purple-600" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">{replyRate}%</div>
+          <div className="text-xl sm:text-2xl font-bold text-slate-900">{replyRate}%</div>
           <p className="text-[11px] text-slate-500">{replied} risposte su {contacted} invii</p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2 flex flex-col justify-between overflow-hidden">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 space-y-1.5 sm:space-y-2 flex flex-col justify-between shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase tracking-wider">Conversione a Partner</span>
             <Trophy className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">{conversionRate}%</div>
+          <div className="text-xl sm:text-2xl font-bold text-slate-900">{conversionRate}%</div>
           <p className="text-[11px] text-slate-500">{won} partner chiusi con successo</p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-2 flex flex-col justify-between overflow-hidden">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 space-y-1.5 sm:space-y-2 flex flex-col justify-between shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-semibold uppercase tracking-wider">Fatturato Stimato / Payout</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Fatturato Stimato</span>
             <DollarSign className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">CHF {totalRevenue}</div>
+          <div className="text-xl sm:text-2xl font-bold text-slate-900">CHF {totalRevenue}</div>
           <p className="text-[11px] text-slate-500">Valore commissionale generato</p>
         </div>
       </div>
 
       {/* Funnel Progress Section */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4 flex flex-col overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4 flex flex-col shadow-xs">
         <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Funnel di Conversione Lead</h4>
 
         <div className="space-y-3 text-xs">
