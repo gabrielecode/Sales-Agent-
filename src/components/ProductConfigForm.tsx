@@ -5,7 +5,6 @@ import { Settings, Save, Upload, Zap, CheckCircle2, Bot, Play, Layers, Sparkles,
 interface ProductConfigFormProps {
   config: ProductConfig;
   onSaveConfig: (config: ProductConfig) => void;
-  onGenerateLeads: () => void;
   onUploadCSV: (csvText: string, replace?: boolean) => void;
   leadsCount: number;
   onOpenCSVModal?: () => void;
@@ -17,7 +16,6 @@ interface ProductConfigFormProps {
 export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
   config,
   onSaveConfig,
-  onGenerateLeads,
   onUploadCSV,
   leadsCount: _leadsCount,
   onOpenCSVModal,
@@ -497,15 +495,6 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               </span>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={onGenerateLeads}
-            className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-          >
-            <Zap className="w-3.5 h-3.5 text-amber-500" />
-            Rigenera Dati Demo con questi Parametri
-          </button>
         </div>
       </form>
 

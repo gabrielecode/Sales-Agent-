@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProductConfig, Lead, AppTab } from './types';
 import { DEFAULT_CONFIG, parseCSVLeads, simulateSimulatedResponses } from './utils/mockData';
-import { generateMarketplaceLeads } from './lib/marketplaceLeadGenerator';
 import { validateEmailQuality, determineToneOfVoice } from './lib/csvParser';
 import { ProductConfigForm } from './components/ProductConfigForm';
 import { LeadFilters } from './components/LeadFilters';
@@ -22,13 +21,10 @@ import {
   BookOpen,
   Plus,
   TrendingUp,
-  MailCheck,
   CheckCircle2,
   Workflow,
   HelpCircle,
-  RefreshCw,
   Upload,
-  Trash2,
   Menu,
   X,
 } from 'lucide-react';
@@ -51,12 +47,13 @@ export default function App() {
         const parsed = JSON.parse(saved);
         return parsed.map((l: Lead) => ({
           ...l,
+          source: 'csv',
           emailQuality: l.emailQuality || (l.email ? validateEmailQuality(l.email) : 'Mancante'),
           toneOfVoice: l.toneOfVoice || determineToneOfVoice(l.industry),
         }));
       }
     } catch (e) {}
-    return generateMarketplaceLeads(DEFAULT_CONFIG);
+    return [];
   });
 
   const [showTour, setShowTour] = useState<boolean>(false);
@@ -71,7 +68,6 @@ export default function App() {
 
   // Filters
   const [platformFilter, setPlatformFilter] = useState<string>('all');
-  const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [languageFilter, setLanguageFilter] = useState<string>('all');
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -112,20 +108,9 @@ export default function App() {
     setLeads((prev) => prev.map((l) => ({ ...l, selected: false })));
   };
 
-  const handleGenerateLeads = () => {
-    const newLeads = generateMarketplaceLeads(config);
-    setLeads(newLeads);
-    showToast('Dati di esempio rigenerati con successo');
-  };
-
   const handleDeleteLead = (id: string) => {
     setLeads((prev) => prev.filter((l) => l.id !== id));
     showToast('Contatto eliminato');
-  };
-
-  const handleClearMockOnly = () => {
-    setLeads((prev) => prev.filter((l) => l.source !== 'auto'));
-    showToast('Tutti i dati finti / simulati sono stati eliminati');
   };
 
   const handleClearAllLeads = () => {
@@ -262,7 +247,6 @@ export default function App() {
   // Filtered leads
   const filteredLeads = leads.filter((lead) => {
     if (platformFilter !== 'all' && lead.platform !== platformFilter) return false;
-    if (sourceFilter !== 'all' && lead.source !== sourceFilter) return false;
     if (languageFilter !== 'all' && lead.language !== languageFilter) return false;
     if (lead.leadScore < minScoreFilter) return false;
     if (searchQuery.trim() !== '') {
@@ -281,8 +265,6 @@ export default function App() {
   const activeWorkflowsCount = leads.filter((l) => l.status !== 'discovered').length;
   const totalEnrolledCount = leads.filter((l) => l.selected).length;
   const wonPartnersCount = leads.filter((l) => l.status === 'won').length;
-  const mockLeadsCount = leads.filter((l) => l.source === 'auto').length;
-  const csvLeadsCount = leads.filter((l) => l.source === 'csv').length;
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen md:h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-x-hidden md:overflow-hidden">
@@ -591,27 +573,6 @@ export default function App() {
                 Carica CSV (PC)
               </button>
 
-              {/* Direct Delete Mock Data Button */}
-              {mockLeadsCount > 0 && (
-                <button
-                  onClick={() => setIsClearModalOpen(true)}
-                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
-                  title="Cancella i contatti generati automaticamente"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  Cancella Dati Finti ({mockLeadsCount})
-                </button>
-              )}
-
-              <button
-                onClick={handleGenerateLeads}
-                className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                title="Genera contatti di esempio per testare"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-                Dati Demo
-              </button>
-
               <button
                 onClick={() => setActiveTab('outreach')}
                 className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
@@ -641,7 +602,7 @@ export default function App() {
                 {totalLeadsCount}
               </div>
               <div className="text-[11px] text-slate-400 mt-1 truncate">
-                {csvLeadsCount > 0 ? `${csvLeadsCount} da CSV, ${mockLeadsCount} demo` : `${mockLeadsCount} demo`}
+                {totalLeadsCount === 0 ? 'Nessun lead importato' : `${totalLeadsCount} lead in pipeline`}
               </div>
             </div>
 
@@ -690,14 +651,12 @@ export default function App() {
           </div>
 
           {/* 5. Tab Content: Container */}
-          <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
+          <div className="flex-1 flex flex-col min-w-0 w-full">
             {activeTab === 'leads' && (
-              <div className="space-y-4 flex flex-col w-full overflow-hidden">
+              <div className="space-y-4 flex flex-col w-full">
                 <LeadFilters
                   platformFilter={platformFilter}
                   setPlatformFilter={setPlatformFilter}
-                  sourceFilter={sourceFilter}
-                  setSourceFilter={setSourceFilter}
                   languageFilter={languageFilter}
                   setLanguageFilter={setLanguageFilter}
                   minScoreFilter={minScoreFilter}
@@ -706,10 +665,9 @@ export default function App() {
                   setSearchQuery={setSearchQuery}
                   onSelectAllAboveThreshold={handleSelectAllAboveThreshold}
                   onDeselectAll={handleDeselectAll}
-                  onRefreshLeads={handleGenerateLeads}
+                  leads={leads}
                   totalLeads={leads.length}
                   selectedCount={totalEnrolledCount}
-                  mockLeadsCount={mockLeadsCount}
                   onOpenCSVModal={() => setIsCSVModalOpen(true)}
                   onOpenClearModal={() => setIsClearModalOpen(true)}
                   onDeleteSelected={handleDeleteSelectedLeads}
@@ -720,28 +678,12 @@ export default function App() {
                     <div className="flex items-center flex-wrap gap-2.5">
                       <span className="text-xs font-bold text-slate-900">Tabella Lead & Creator</span>
                       <span className="text-xs text-slate-400">({filteredLeads.length} filtrati)</span>
-                      {csvLeadsCount > 0 && (
+                      {leads.length > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
-                          {csvLeadsCount} da CSV
-                        </span>
-                      )}
-                      {mockLeadsCount > 0 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium border border-amber-200">
-                          {mockLeadsCount} demo
+                          {leads.length} totali da CSV
                         </span>
                       )}
                     </div>
-
-                    {mockLeadsCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleClearMockOnly}
-                        className="text-xs text-rose-600 hover:text-rose-700 hover:underline font-medium flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Cancella solo dati finti
-                      </button>
-                    )}
                   </div>
                   <LeadTable
                     leads={filteredLeads}
@@ -750,14 +692,13 @@ export default function App() {
                     onOpenOutreachForLead={handleOpenOutreachForLead}
                     onDeleteLead={handleDeleteLead}
                     onOpenCSVModal={() => setIsCSVModalOpen(true)}
-                    onRegenerateMock={handleGenerateLeads}
                   />
                 </div>
               </div>
             )}
 
             {activeTab === 'outreach' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col">
                 <OutreachPanel
                   leads={leads}
                   config={config}
@@ -768,7 +709,7 @@ export default function App() {
             )}
 
             {activeTab === 'responses' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col">
                 <ResponsesList
                   leads={leads}
                   onSimulateIncomingResponses={handleSimulateIncomingResponses}
@@ -779,17 +720,16 @@ export default function App() {
             )}
 
             {activeTab === 'dashboard' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col">
                 <DashboardKPIs leads={leads} />
               </div>
             )}
 
             {activeTab === 'config' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col">
                 <ProductConfigForm
                   config={config}
                   onSaveConfig={setConfig}
-                  onGenerateLeads={handleGenerateLeads}
                   onUploadCSV={handleUploadCSV}
                   leadsCount={leads.length}
                   onOpenCSVModal={() => setIsCSVModalOpen(true)}
@@ -798,7 +738,7 @@ export default function App() {
             )}
 
             {activeTab === 'instructions' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-xs flex flex-col">
                 <InstructionsPage />
               </div>
             )}
@@ -820,10 +760,8 @@ export default function App() {
       <ClearDataModal
         isOpen={isClearModalOpen}
         onClose={() => setIsClearModalOpen(false)}
-        mockLeadsCount={mockLeadsCount}
         totalLeadsCount={leads.length}
         selectedLeadsCount={totalEnrolledCount}
-        onClearMockOnly={handleClearMockOnly}
         onClearAll={handleClearAllLeads}
         onClearSelected={handleDeleteSelectedLeads}
       />

@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { Trash2, AlertTriangle, X, ShieldAlert, Sparkles } from 'lucide-react';
+import { Trash2, AlertTriangle, X } from 'lucide-react';
 
 interface ClearDataModalProps {
   isOpen: boolean;
   onClose: () => void;
-  mockLeadsCount: number;
   totalLeadsCount: number;
   selectedLeadsCount: number;
-  onClearMockOnly: () => void;
   onClearAll: () => void;
   onClearSelected: () => void;
 }
@@ -15,23 +13,19 @@ interface ClearDataModalProps {
 export const ClearDataModal: React.FC<ClearDataModalProps> = ({
   isOpen,
   onClose,
-  mockLeadsCount,
   totalLeadsCount,
   selectedLeadsCount,
-  onClearMockOnly,
   onClearAll,
   onClearSelected,
 }) => {
-  const [actionType, setActionType] = useState<'mock' | 'all' | 'selected'>(
-    mockLeadsCount > 0 ? 'mock' : 'all'
+  const [actionType, setActionType] = useState<'all' | 'selected'>(
+    selectedLeadsCount > 0 ? 'selected' : 'all'
   );
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    if (actionType === 'mock') {
-      onClearMockOnly();
-    } else if (actionType === 'all') {
+    if (actionType === 'all') {
       onClearAll();
     } else if (actionType === 'selected') {
       onClearSelected();
@@ -66,37 +60,6 @@ export const ClearDataModal: React.FC<ClearDataModalProps> = ({
 
         {/* Content Options */}
         <div className="p-4 sm:p-6 space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          {mockLeadsCount > 0 && (
-            <label
-              className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
-                actionType === 'mock'
-                  ? 'border-rose-500 bg-rose-50/30'
-                  : 'border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="clear_choice"
-                checked={actionType === 'mock'}
-                onChange={() => setActionType('mock')}
-                className="mt-1 text-rose-600 focus:ring-0"
-              />
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900">
-                    Cancella solo i dati finti / simulati
-                  </span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-semibold">
-                    {mockLeadsCount} lead finti
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Rimuove tutti i lead generati automaticamente di test. Se hai già importato file CSV dal PC, verranno conservati.
-                </p>
-              </div>
-            </label>
-          )}
-
           {selectedLeadsCount > 0 && (
             <label
               className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
@@ -159,7 +122,7 @@ export const ClearDataModal: React.FC<ClearDataModalProps> = ({
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 flex items-center gap-2 mt-2">
             <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
-            <span>Questa operazione non potrà essere annullata, ma potrai sempre ricaricare un CSV o rigenerare i dati di prova.</span>
+            <span>Questa operazione non potrà essere annullata, ma potrai sempre caricare un nuovo file CSV.</span>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, Language } from '../types';
+import { Lead } from '../types';
 import {
   Search,
   CheckSquare,
@@ -14,8 +14,6 @@ import {
 interface LeadFiltersProps {
   platformFilter: string;
   setPlatformFilter: (val: string) => void;
-  sourceFilter: string;
-  setSourceFilter: (val: string) => void;
   languageFilter: string;
   setLanguageFilter: (val: string) => void;
   minScoreFilter: number;
@@ -24,10 +22,9 @@ interface LeadFiltersProps {
   setSearchQuery: (val: string) => void;
   onSelectAllAboveThreshold: () => void;
   onDeselectAll: () => void;
-  onRefreshLeads: () => void;
+  leads: Lead[];
   totalLeads: number;
   selectedCount: number;
-  mockLeadsCount: number;
   onOpenCSVModal: () => void;
   onOpenClearModal: () => void;
   onDeleteSelected: () => void;
@@ -36,8 +33,6 @@ interface LeadFiltersProps {
 export const LeadFilters: React.FC<LeadFiltersProps> = ({
   platformFilter,
   setPlatformFilter,
-  sourceFilter,
-  setSourceFilter,
   languageFilter,
   setLanguageFilter,
   minScoreFilter,
@@ -46,25 +41,24 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
   setSearchQuery,
   onSelectAllAboveThreshold,
   onDeselectAll,
-  totalLeads,
+  leads,
   selectedCount,
-  mockLeadsCount,
   onOpenCSVModal,
   onOpenClearModal,
   onDeleteSelected,
 }) => {
   const [showFiltersMobile, setShowFiltersMobile] = useState<boolean>(false);
 
+  const uniquePlatforms = Array.from(new Set(leads.map((l) => l.platform)));
+
   const activeFiltersCount =
     (platformFilter !== 'all' ? 1 : 0) +
-    (sourceFilter !== 'all' ? 1 : 0) +
     (languageFilter !== 'all' ? 1 : 0) +
     (minScoreFilter > 0 ? 1 : 0) +
     (searchQuery.trim() ? 1 : 0);
 
   const handleResetFilters = () => {
     setPlatformFilter('all');
-    setSourceFilter('all');
     setLanguageFilter('all');
     setMinScoreFilter(0);
     setSearchQuery('');
@@ -167,13 +161,10 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
             type="button"
             onClick={onOpenClearModal}
             className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-[11px] sm:text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
-            title="Cancella dati finti simulati o svuota tabella"
+            title="Svuota tabella contatti"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-            <span className="hidden sm:inline">
-              {mockLeadsCount > 0 ? `Dati Finti (${mockLeadsCount})` : 'Svuota'}
-            </span>
-            <span className="sm:hidden">Cancella</span>
+            <span>Svuota</span>
           </button>
 
           {activeFiltersCount > 0 && (
@@ -190,39 +181,28 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
         </div>
       </div>
 
-      {/* Dropdown Filters Grid (Always visible on sm+, toggleable on mobile) */}
+      {/* Dropdown Filters Grid */}
       <div
         className={`${
           showFiltersMobile ? 'grid' : 'hidden sm:grid'
-        } grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 text-xs`}
+        } grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 text-xs`}
       >
         <div>
           <label className="block text-[11px] font-medium text-slate-600 mb-1">Piattaforma</label>
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value)}
-            className="w-full h-9 pl-3 pr-8 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%208l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat shadow-2xs"
+            disabled={uniquePlatforms.length === 0}
+            className="w-full h-9 pl-3 pr-8 py-1.5 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 hover:bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%208l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat shadow-2xs"
           >
-            <option value="all">Tutte le Piattaforme</option>
-            <option value="Etsy">Etsy</option>
-            <option value="Amazon KDP">Amazon KDP</option>
-            <option value="Shopify">Shopify</option>
-            <option value="Instagram">Instagram</option>
-            <option value="Web">Siti Web / Blog</option>
-            <option value="LinkedIn">LinkedIn</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[11px] font-medium text-slate-600 mb-1">Origine Dati</label>
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="w-full h-9 pl-3 pr-8 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%208l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat shadow-2xs"
-          >
-            <option value="all">Tutte le Fonti</option>
-            <option value="csv">Importati da CSV (PC)</option>
-            <option value="auto">Generati / Finti (Demo)</option>
+            <option value="all">
+              {uniquePlatforms.length === 0 ? 'Nessuna piattaforma nei dati' : 'Tutte le Piattaforme'}
+            </option>
+            {uniquePlatforms.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -260,4 +240,3 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
     </div>
   );
 };
-

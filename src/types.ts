@@ -77,7 +77,7 @@ export interface Lead {
   hasNeedSignal: boolean;
   shortNotes: string;
   leadScore: number;
-  source: 'auto' | 'csv' | 'custom';
+  source: 'csv' | 'custom';
   status: 'discovered' | 'contacted' | 'awaiting_reply' | 'replied' | 'in_negotiation' | 'won' | 'lost';
   selected: boolean;
   message?: LeadMessage;

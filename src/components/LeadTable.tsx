@@ -8,12 +8,9 @@ import {
   MapPin,
   Trash2,
   Upload,
-  RefreshCw,
   FileSpreadsheet,
   LayoutGrid,
   Table as TableIcon,
-  Check,
-  AlertTriangle,
   Layers,
 } from 'lucide-react';
 
@@ -24,7 +21,6 @@ interface LeadTableProps {
   onOpenOutreachForLead: (id: string) => void;
   onDeleteLead?: (id: string) => void;
   onOpenCSVModal?: () => void;
-  onRegenerateMock?: () => void;
 }
 
 export const LeadTable: React.FC<LeadTableProps> = ({
@@ -34,7 +30,6 @@ export const LeadTable: React.FC<LeadTableProps> = ({
   onOpenOutreachForLead,
   onDeleteLead,
   onOpenCSVModal,
-  onRegenerateMock,
 }) => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const allSelected = leads.length > 0 && leads.every((l) => l.selected);
@@ -46,12 +41,12 @@ export const LeadTable: React.FC<LeadTableProps> = ({
           <FileSpreadsheet className="w-7 h-7 text-slate-400" />
         </div>
         <div>
-          <h4 className="text-sm font-bold text-slate-900">Nessun contatto presente</h4>
+          <h4 className="text-sm font-bold text-slate-900">Nessun contatto ancora</h4>
           <p className="text-xs text-slate-500 mt-1">
-            La tabella contatti è vuota. Puoi caricare un file CSV dal tuo computer con i tuoi contatti reali, oppure generare una lista di esempio per testare il sistema.
+            La tabella contatti è vuota. Carica un file CSV dal tuo computer per iniziare con la tua lista di lead.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2 w-full sm:w-auto">
           {onOpenCSVModal && (
             <button
               type="button"
@@ -59,17 +54,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
               className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
-              Carica CSV dal PC
-            </button>
-          )}
-          {onRegenerateMock && (
-            <button
-              type="button"
-              onClick={onRegenerateMock}
-              className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-              Genera dati di prova
+              Carica file CSV
             </button>
           )}
         </div>
@@ -111,18 +96,6 @@ export const LeadTable: React.FC<LeadTableProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Compliance / Demo Data Notice */}
-      {leads.some((l) => l.isMock) && (
-        <div className="mx-4 my-2.5 p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="leading-relaxed">
-            <span className="font-bold">Avviso Dati Dimostrativi:</span> I profili contrassegnati con badge{' '}
-            <span className="inline-block px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-semibold text-[10px]">demo</span>{' '}
-            sono lead fittizi generati localmente per testare il flusso di scoring ed email. Non provengono da ricerche reali su marketplace e non devono essere usati per invii di massa reali prima di essere verificati o sostituiti con un file CSV.
-          </div>
-        </div>
-      )}
 
       {/* 1. Mobile Cards View (Visible on < md when viewMode === 'cards') */}
       {viewMode === 'cards' && (
@@ -170,15 +143,9 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">
                           {lead.platform}
                         </span>
-                        {lead.source === 'csv' ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                            CSV PC
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                            Simulato
-                          </span>
-                        )}
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                          CSV
+                        </span>
                         <span className="text-[11px] text-slate-500 flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-slate-400" />
                           {lead.city || 'Svizzera'}
@@ -379,15 +346,9 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700">
                         {lead.platform}
                       </span>
-                      {lead.source === 'csv' ? (
-                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                          CSV PC
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                          Simulato
-                        </span>
-                      )}
+                      <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                        CSV
+                      </span>
                     </div>
                   </td>
 
@@ -474,4 +435,3 @@ export const LeadTable: React.FC<LeadTableProps> = ({
     </div>
   );
 };
-
