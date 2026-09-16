@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lead } from '../types';
+import { getFunnelStage, FUNNEL_STAGE_LABELS, FUNNEL_STAGE_COLORS } from '../lib/funnelStage';
 import {
   ExternalLink,
   Mail,
@@ -13,6 +14,7 @@ import {
   Table as TableIcon,
   Check,
   AlertTriangle,
+  Layers,
 } from 'lucide-react';
 
 interface LeadTableProps {
@@ -223,20 +225,35 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                 </div>
 
                 {/* Actions row */}
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
-                      lead.status === 'won'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : lead.status === 'replied'
-                        ? 'bg-purple-100 text-purple-800'
-                        : lead.status === 'contacted'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {lead.status === 'won' ? 'Partner Attivo' : lead.status}
-                  </span>
+                <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                        lead.status === 'won'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : lead.status === 'replied'
+                          ? 'bg-purple-100 text-purple-800'
+                          : lead.status === 'contacted'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {lead.status === 'won' ? 'Partner Attivo' : lead.status}
+                    </span>
+
+                    {/* Funnel Stage Badge */}
+                    {(() => {
+                      const stage = getFunnelStage(lead);
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${FUNNEL_STAGE_COLORS[stage]}`}
+                        >
+                          <Layers className="w-2.5 h-2.5" />
+                          {FUNNEL_STAGE_LABELS[stage]}
+                        </span>
+                      );
+                    })()}
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <button
@@ -290,6 +307,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
               <th className="py-3 px-4 min-w-[160px]">Segnali di Business</th>
               <th className="py-3 px-4 text-center min-w-[90px]">Lead Score</th>
               <th className="py-3 px-4 text-center min-w-[100px]">Stato</th>
+              <th className="py-3 px-4 text-center min-w-[110px]">Stadio Funnel</th>
               <th className="py-3 px-4 text-right min-w-[120px]">Azioni</th>
             </tr>
           </thead>
@@ -297,6 +315,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
             {leads.map((lead) => {
               const isHighScore = lead.leadScore >= 75;
               const isMediumScore = lead.leadScore >= 50 && lead.leadScore < 75;
+              const funnelStage = getFunnelStage(lead);
 
               return (
                 <tr
@@ -413,6 +432,15 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                       }`}
                     >
                       {lead.status === 'won' ? 'Partner' : lead.status}
+                    </span>
+                  </td>
+
+                  <td className="py-3 px-4 text-center">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${FUNNEL_STAGE_COLORS[funnelStage]}`}
+                    >
+                      <Layers className="w-2.5 h-2.5" />
+                      {FUNNEL_STAGE_LABELS[funnelStage]}
                     </span>
                   </td>
 

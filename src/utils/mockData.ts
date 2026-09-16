@@ -11,6 +11,21 @@ export const DEFAULT_CONFIG: ProductConfig = {
   languages: ['it', 'de', 'fr', 'en'],
   minLeadScore: 65,
   dailyOutreachLimit: 25,
+  autoOutreach: false,
+  funnelAssets: {
+    awareness: [
+      'Guida PDF: Come scalare le vendite con affiliazioni ed e-commerce',
+      'Checklist: I 5 errori da evitare nelle collaborazioni digitali',
+    ],
+    evaluation: [
+      'Demo video interattiva della piattaforma partner',
+      'Case study: +42% di margine medio per creator e shop partner',
+    ],
+    purchase: [
+      'Link di attivazione immediata programma partner con bonus benvenuto',
+      'Prenotazione call di onboarding 1-a-1 gratuita (15 min)',
+    ],
+  },
   openRouterModel: 'meta-llama/llama-3-8b-instruct:free',
 };
 

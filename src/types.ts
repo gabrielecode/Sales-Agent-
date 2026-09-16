@@ -3,6 +3,7 @@ export type Language = 'it' | 'en' | 'de' | 'fr';
 export type OfferType = 'affiliate' | 'sponsorship' | 'digital_product' | 'collab' | 'software';
 export type TargetCategory = 'creators' | 'ecommerce' | 'authors' | 'influencers' | 'b2b' | 'handmade';
 export type IntentClassification = 'interested' | 'info_requested' | 'not_interested' | 'ready_to_close';
+export type FunnelStage = 'awareness' | 'evaluation' | 'purchase';
 
 export type AppTab = 'config' | 'leads' | 'outreach' | 'responses' | 'dashboard' | 'instructions';
 
@@ -17,6 +18,13 @@ export interface ProductConfig {
   languages: Language[];
   minLeadScore: number;
   dailyOutreachLimit: number;
+  autoOutreach?: boolean;
+  lastAutoRunAt?: string;
+  funnelAssets?: {
+    awareness: string[];
+    evaluation: string[];
+    purchase: string[];
+  };
   openRouterApiKey?: string;
   openRouterModel?: string;
   resendApiKey?: string;

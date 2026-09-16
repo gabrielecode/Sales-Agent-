@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Lead, ProductConfig } from '../types';
+import { Lead, ProductConfig, FunnelStage } from '../types';
 import { generateOutreachMessageWithAI } from '../lib/openrouter';
 import { sendOutreachEmail } from '../lib/resendClient';
+import { getFunnelStage, FUNNEL_STAGE_LABELS, FUNNEL_STAGE_COLORS, getFunnelStageDescription } from '../lib/funnelStage';
 import {
   getDailySentCount,
   recordDailySentCount,
@@ -20,6 +21,7 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  Layers,
 } from 'lucide-react';
 
 interface OutreachPanelProps {

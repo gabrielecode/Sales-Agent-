@@ -2,5 +2,7 @@
   "name": "Affiliate Sales Agent",
   "description": "Autonomous SaaS agent for marketplace lead discovery, scoring, AI outreach and pipeline conversion.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

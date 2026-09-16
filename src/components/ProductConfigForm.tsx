@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ProductConfig, OfferType, TargetCategory, Platform, Language } from '../types';
-import { Settings, Save, Upload, Zap, FileText, CheckCircle2 } from 'lucide-react';
+import { ProductConfig, OfferType } from '../types';
+import { Settings, Save, Upload, Zap, CheckCircle2, Bot, Play, Layers, Sparkles, Clock, BookOpen, FileCheck, Award } from 'lucide-react';
 
 interface ProductConfigFormProps {
   config: ProductConfig;
@@ -9,6 +9,9 @@ interface ProductConfigFormProps {
   onUploadCSV: (csvText: string, replace?: boolean) => void;
   leadsCount: number;
   onOpenCSVModal?: () => void;
+  onTriggerAutopilot?: () => Promise<void>;
+  isAutopilotRunning?: boolean;
+  autopilotMessage?: string | null;
 }
 
 export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
@@ -16,10 +19,29 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
   onSaveConfig,
   onGenerateLeads,
   onUploadCSV,
-  leadsCount,
+  leadsCount: _leadsCount,
   onOpenCSVModal,
+  onTriggerAutopilot,
+  isAutopilotRunning = false,
+  autopilotMessage = null,
 }) => {
-  const [formData, setFormData] = useState<ProductConfig>(config);
+  const [formData, setFormData] = useState<ProductConfig>({
+    ...config,
+    funnelAssets: config.funnelAssets || {
+      awareness: [
+        'Guida PDF: Come scalare le vendite con affiliazioni ed e-commerce',
+        'Checklist: I 5 errori da evitare nelle collaborazioni digitali',
+      ],
+      evaluation: [
+        'Demo video interattiva della piattaforma partner',
+        'Case study: +42% di margine medio per creator e shop partner',
+      ],
+      purchase: [
+        'Link di attivazione immediata programma partner con bonus benvenuto',
+        'Prenotazione call di onboarding 1-a-1 gratuita (15 min)',
+      ],
+    },
+  });
   const [csvInput, setCsvInput] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -49,6 +71,22 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
     }
   };
 
+  const updateFunnelStageAssets = (stage: 'awareness' | 'evaluation' | 'purchase', textValue: string) => {
+    const lines = textValue
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    setFormData((prev) => ({
+      ...prev,
+      funnelAssets: {
+        awareness: prev.funnelAssets?.awareness || [],
+        evaluation: prev.funnelAssets?.evaluation || [],
+        purchase: prev.funnelAssets?.purchase || [],
+        [stage]: lines,
+      },
+    }));
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -57,7 +95,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           Configurazione Prodotto & Parametri di Outreach
         </h3>
         <p className="text-slate-500 text-xs mt-0.5">
-          Definisci le caratteristiche del prodotto affiliato, commissioni, canali e integrazioni esterne.
+          Definisci le caratteristiche del prodotto affiliato, commissioni, automazione autopilot e funnel di contenuti.
         </p>
       </div>
 
@@ -138,6 +176,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                 />
                 <span className="text-[10px] text-slate-400 mt-0.5 block">Blocca l'invio al superamento della quota odierna.</span>
               </div>
+
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Score Minimo Lead</label>
                 <input
@@ -148,14 +187,14 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                   onChange={(e) => setFormData({ ...formData, minLeadScore: parseInt(e.target.value) || 60 })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
                 />
-                <span className="text-[10px] text-slate-400 mt-0.5 block">Soglia per identificare profili prioritari.</span>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Soglia per identificare profili idonei ad Autopilot.</span>
               </div>
             </div>
           </div>
 
           {/* Right Column: AI & Integrations */}
           <div className="space-y-4">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Integrazioni API (Facoltative)</h4>
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Integrazioni API & Provider</h4>
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -204,6 +243,162 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                 value={formData.emailFromAddress || ''}
                 onChange={(e) => setFormData({ ...formData, emailFromAddress: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* PARTE A: Autopilot Section */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                <Bot className="w-5 h-5 text-indigo-300" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold flex items-center gap-2">
+                  Autopilot Outbound (Invio Automatico Proattivo)
+                  {formData.autoOutreach ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      ATTIVO
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-white/10 text-slate-300">
+                      DISATTIVO
+                    </span>
+                  )}
+                </h4>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  L'agent analizza i lead scoperti con punteggio ≥ {formData.minLeadScore}, genera messaggi in fase Awareness e invia automaticamente rispettando la quota giornaliera.
+                </p>
+              </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={formData.autoOutreach || false}
+                onChange={(e) => setFormData({ ...formData, autoOutreach: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-white/10 text-xs">
+            <div className="flex items-center gap-2 text-slate-300">
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
+              <span>
+                {formData.lastAutoRunAt
+                  ? `Ultimo ciclo eseguito: ${new Date(formData.lastAutoRunAt).toLocaleString('it-IT')}`
+                  : 'Nessun ciclo autopilot ancora eseguito'}
+              </span>
+            </div>
+
+            {onTriggerAutopilot && (
+              <button
+                type="button"
+                onClick={onTriggerAutopilot}
+                disabled={isAutopilotRunning}
+                className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg font-medium transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer self-start sm:self-auto"
+              >
+                <Play className={`w-3 h-3 ${isAutopilotRunning ? 'animate-spin' : ''}`} />
+                {isAutopilotRunning ? 'Esecuzione Autopilot...' : 'Esegui Ciclo Autopilot Ora'}
+              </button>
+            )}
+          </div>
+
+          {autopilotMessage && (
+            <div className="p-2.5 bg-white/10 rounded-xl text-xs text-indigo-200 border border-white/10">
+              {autopilotMessage}
+            </div>
+          )}
+        </div>
+
+        {/* PARTE C: 3-Stage Content Funnel Assets */}
+        <div className="p-4 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                Funnel di Contenuti a 3 Stadi (Asset Dedicati)
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              </h4>
+              <p className="text-xs text-slate-500">
+                Inserisci gli asset reali (uno per riga) da citare nei messaggi AI per guidare il lead da primo contatto fino all'accordo.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 1. Awareness */}
+            <div className="p-3.5 rounded-xl border border-pink-200 bg-pink-50/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-pink-900 flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-pink-600" />
+                  1. Awareness (Soft & Free)
+                </span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-pink-100 text-pink-800">
+                  Primo contatto
+                </span>
+              </div>
+              <p className="text-[11px] text-pink-800/80">
+                Guide gratuite, blog post, checklist e report. Nessuna richiesta di acquisto o vincolo.
+              </p>
+              <textarea
+                rows={3}
+                value={(formData.funnelAssets?.awareness || []).join('\n')}
+                onChange={(e) => updateFunnelStageAssets('awareness', e.target.value)}
+                placeholder="Guida PDF: Come scalare le vendite&#10;Checklist: 5 errori e-commerce"
+                className="w-full p-2 bg-white border border-pink-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-pink-500 font-sans"
+              />
+            </div>
+
+            {/* 2. Evaluation */}
+            <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                  <FileCheck className="w-3.5 h-3.5 text-rose-600" />
+                  2. Evaluation (Considerazione)
+                </span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
+                  Risposta & FAQ
+                </span>
+              </div>
+              <p className="text-[11px] text-rose-800/80">
+                Case study con metriche reali, demo interattiva, video walk-through, schede tecniche.
+              </p>
+              <textarea
+                rows={3}
+                value={(formData.funnelAssets?.evaluation || []).join('\n')}
+                onChange={(e) => updateFunnelStageAssets('evaluation', e.target.value)}
+                placeholder="Demo video interattiva piattaforma&#10;Case study: +42% margine medio"
+                className="w-full p-2 bg-white border border-rose-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-rose-500 font-sans"
+              />
+            </div>
+
+            {/* 3. Purchase */}
+            <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-amber-600" />
+                  3. Purchase (Conversione)
+                </span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                  Chiusura & Accordi
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800/80">
+                Attivazione referral link immediata, bonus partner, prova gratuita, onboarding 1-a-1.
+              </p>
+              <textarea
+                rows={3}
+                value={(formData.funnelAssets?.purchase || []).join('\n')}
+                onChange={(e) => updateFunnelStageAssets('purchase', e.target.value)}
+                placeholder="Link attivazione account partner&#10;Prenotazione call di onboarding (15 min)"
+                className="w-full p-2 bg-white border border-amber-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-amber-500 font-sans"
               />
             </div>
           </div>
@@ -287,3 +482,4 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
     </div>
   );
 };
+
