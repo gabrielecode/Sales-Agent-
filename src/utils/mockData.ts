@@ -12,6 +12,9 @@ export const DEFAULT_CONFIG: ProductConfig = {
   minLeadScore: 65,
   dailyOutreachLimit: 25,
   autoOutreach: false,
+  emailFromName: 'Sales Agent',
+  emailFromAddress: '',
+  emailReplyTo: 'risposte@inbound.sititicino.ch',
   funnelAssets: {
     awareness: [
       'Guida PDF: Come scalare le vendite con affiliazioni ed e-commerce',

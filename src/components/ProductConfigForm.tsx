@@ -235,15 +235,43 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                Indirizzo Email Mittente (From)
+                Nome Mittente (From Name)
               </label>
               <input
                 type="text"
-                placeholder="partners@tuodominio.ch"
+                placeholder="Sales Agent"
+                value={formData.emailFromName || ''}
+                onChange={(e) => setFormData({ ...formData, emailFromName: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Indirizzo Email Mittente (From Address)
+              </label>
+              <input
+                type="text"
+                placeholder="noreply@sititicino.ch"
                 value={formData.emailFromAddress || ''}
                 onChange={(e) => setFormData({ ...formData, emailFromAddress: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Usa EMAIL_FROM_ADDRESS o onboarding@resend.dev come fallback se vuoto.</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Indirizzo di Risposta (Reply-To)
+              </label>
+              <input
+                type="text"
+                placeholder="risposte@inbound.sititicino.ch"
+                value={formData.emailReplyTo || ''}
+                onChange={(e) => setFormData({ ...formData, emailReplyTo: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Indirizzo dove arrivano le risposte dei lead (dominio dedicato alla ricezione, diverso dal mittente).</span>
             </div>
           </div>
         </div>

@@ -32,7 +32,8 @@ OPENROUTER_API_KEY="sk-or-..."
 # RESEND_API_KEY: Chiave per invio email transazionali reali via Resend
 RESEND_API_KEY="re_..."
 EMAIL_FROM_NAME="Sales Agent"
-EMAIL_FROM_ADDRESS="noreply@tuodominio.ch"
+EMAIL_FROM_ADDRESS="noreply@sititicino.ch"
+EMAIL_REPLY_TO="rispondi@inbound.sititicino.ch"
 
 # URL di hosting
 APP_URL="https://tuo-dominio.vercel.app"
@@ -48,7 +49,7 @@ APP_URL="https://tuo-dominio.vercel.app"
   - Restituisce `{ subject, body }` con fallback locale automatico se la chiamata fallisce.
 - **`POST /api/send-email`**:
   - Riceve `{ to, subject, body, config }`
-  - Invia l'email tramite Resend (`config.resendApiKey` o `process.env.RESEND_API_KEY`) oppure restituisce una simulazione sicura `{ success: true, simulated: true }` se la chiave non è configurata.
+  - Invia l'email tramite Resend (`config.resendApiKey` o `process.env.RESEND_API_KEY`) impostando un mittente dedicato (`noreply@sititicino.ch`) e un indirizzo di risposta separato per il webhook (`rispondi@inbound.sititicino.ch`).
   - Restituisce `{ success, simulated, messageId, error }`.
 
 ---
@@ -58,10 +59,11 @@ APP_URL="https://tuo-dominio.vercel.app"
 1. **Modalità Mock (Default / Sviluppo)**:
    - Se non imposti `RESEND_API_KEY`, l'applicazione attiva automaticamente la **Modalità Mock**: le email vengono simulate con log in console e restituiscono esito positivo senza richiedere credenziali.
 
-2. **Modalità Reale (Produzione)**:
+2. **Modalità Reale (Produzione & DNS)**:
    - Registrati su [Resend](https://resend.com).
    - Genera una **API Key** (`re_...`).
-   - Verifica un tuo dominio su Resend (consigliato per evitare filtri antispam) e configura `EMAIL_FROM_ADDRESS` con un indirizzo del dominio verificato (es. `noreply@tuodominio.ch`).
+   - Verifica il tuo dominio principale su Resend (`sititicino.ch`) per l'invio e configura `EMAIL_FROM_ADDRESS` con `noreply@sititicino.ch`.
+   - Configura il sottodominio di ricezione (`inbound.sititicino.ch`) con i record DNS dedicati per i webhook Inbound di Resend e imposta `EMAIL_REPLY_TO` su `rispondi@inbound.sititicino.ch`.
    - In fase di test puoi usare l'indirizzo sandbox fornito da Resend (`onboarding@resend.dev`).
 
 ---

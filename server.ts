@@ -11,6 +11,8 @@ interface InboundEmailEvent {
   id: string;
   from: string;
   senderEmail: string;
+  to?: string;
+  inReplyTo?: string;
   subject: string;
   text: string;
   intent: IntentClassification;
@@ -253,7 +255,10 @@ async function sendEmailInternal(
   config?: any
 ): Promise<{ success: boolean; simulated: boolean; messageId?: string; error?: string }> {
   const apiKey = (config?.resendApiKey || process.env.RESEND_API_KEY || "").trim();
+  const fromName = (config?.emailFromName || process.env.EMAIL_FROM_NAME || "Sales Agent").trim();
   const fromAddress = (config?.emailFromAddress || process.env.EMAIL_FROM_ADDRESS || "onboarding@resend.dev").trim();
+  const formattedFrom = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
+  const replyToAddress = (config?.emailReplyTo || process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "rispondi@inbound.sititicino.ch").trim();
 
   if (!apiKey) {
     return {
@@ -264,19 +269,24 @@ async function sendEmailInternal(
   }
 
   try {
+    const payload: any = {
+      from: formattedFrom,
+      to: [to],
+      subject,
+      text: body,
+      html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
+    };
+    if (replyToAddress) {
+      payload.reply_to = replyToAddress;
+    }
+
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        from: fromAddress,
-        to: [to],
-        subject,
-        text: body,
-        html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (resendRes.ok) {
@@ -489,10 +499,14 @@ async function startServer() {
       const payload = req.body || {};
       const data = payload.data || payload;
 
-      // Extract sender, subject, body
+      // Extract sender, recipient (to), subject, body, in-reply-to
       const fromRaw = data.from || data.sender || data.from_email || "";
       const emailMatch = typeof fromRaw === "string" ? fromRaw.match(/<([^>]+)>/) : null;
       const senderEmail = (emailMatch ? emailMatch[1] : fromRaw).trim().toLowerCase();
+
+      const toRaw = data.to || data.recipient || "";
+      const toEmail = typeof toRaw === "string" ? toRaw.trim().toLowerCase() : "";
+      const inReplyTo = data.headers?.["in-reply-to"] || data.in_reply_to || data.headers?.["In-Reply-To"] || "";
 
       const subject = data.subject || "(Nessun oggetto)";
       const text = data.text || data.html || data.body || "(Nessun contenuto)";
@@ -508,6 +522,8 @@ async function startServer() {
         id: `inbound_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         from: fromRaw,
         senderEmail,
+        to: toEmail,
+        inReplyTo: typeof inReplyTo === "string" ? inReplyTo : "",
         subject,
         text: typeof text === "string" ? text.replace(/<[^>]+>/g, " ").trim() : String(text),
         intent: classification.intent,

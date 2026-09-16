@@ -28,7 +28,9 @@ export interface ProductConfig {
   openRouterApiKey?: string;
   openRouterModel?: string;
   resendApiKey?: string;
+  emailFromName?: string;
   emailFromAddress?: string;
+  emailReplyTo?: string;
 }
 
 export interface BusinessSignals {
