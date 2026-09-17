@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { generateLocalMessageFallback } from "./src/lib/messageFallback";
@@ -354,30 +353,53 @@ async function sendEmailInternal(
   }
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "10mb" }));
 
-  app.get("/api/health", async (req, res) => {
-    let inboundEventsCount = 0;
-    if (supabase) {
-      const { count, error } = await supabase
-        .from("inbound_events")
-        .select("*", { count: "exact", head: true });
-      if (!error && count !== null) {
-        inboundEventsCount = count;
-      }
+// Permissive CORS headers for API requests
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
+
+// Normalize request URL if routed through Vercel rewrites where /api might be rewritten to /api
+app.use((req, _res, next) => {
+  const forwardedUrl = (req.headers["x-matched-path"] || req.headers["x-forwarded-uri"]) as string;
+  if (req.url === "/api" && typeof forwardedUrl === "string" && forwardedUrl.startsWith("/api/")) {
+    req.url = forwardedUrl;
+  }
+  next();
+});
+
+app.get(["/api", "/api/"], (req, res) => {
+  res.json({ status: "ok", service: "Affiliate Sales Agent API" });
+});
+
+app.get(["/api/health", "/health"], async (req, res) => {
+  let inboundEventsCount = 0;
+  if (supabase) {
+    const { count, error } = await supabase
+      .from("inbound_events")
+      .select("*", { count: "exact", head: true });
+    if (!error && count !== null) {
+      inboundEventsCount = count;
     }
-    res.json({
-      status: "ok",
-      inboundEventsCount,
-    });
+  }
+  res.json({
+    status: "ok",
+    inboundEventsCount,
   });
+});
 
-  // Endpoint to check server-side configuration status (booleans and public info only)
-  app.get("/api/config-status", (req, res) => {
+// Endpoint to check server-side configuration status (booleans and public info only)
+app.get(["/api/config-status", "/config-status"], (req, res) => {
     const openRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim() !== "");
     const resendConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.trim() !== "");
     const emailFromConfigured = Boolean(process.env.EMAIL_FROM_ADDRESS && process.env.EMAIL_FROM_ADDRESS.trim() !== "");
@@ -395,7 +417,7 @@ async function startServer() {
   });
 
   // 0. Analyze Product URL via AI
-  app.post("/api/analyze-product", async (req, res) => {
+  app.post(["/api/analyze-product", "/analyze-product"], async (req, res) => {
     try {
       const { url } = req.body || {};
       if (!url || typeof url !== "string") {
@@ -541,7 +563,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   });
 
   // 1. Generate Outreach Message with Funnel Stage awareness
-  app.post("/api/generate-message", async (req, res) => {
+  app.post(["/api/generate-message", "/generate-message"], async (req, res) => {
     try {
       const { lead, config, stage } = req.body || {};
       if (!lead) {
@@ -556,7 +578,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   });
 
   // 2. Classify response intent via AI or heuristic
-  app.post("/api/classify-response", async (req, res) => {
+  app.post(["/api/classify-response", "/classify-response"], async (req, res) => {
     try {
       const { text, config } = req.body || {};
       if (!text) {
@@ -578,7 +600,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   });
 
   // 3. Send Transactional Email via Resend (or Mock Simulation)
-  app.post("/api/send-email", async (req, res) => {
+  app.post(["/api/send-email", "/send-email"], async (req, res) => {
     try {
       const { to, subject, body, config } = req.body || {};
       if (!to || !subject || !body) {
@@ -601,7 +623,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   });
 
   // 4. Autopilot Endpoint (/api/autopilot/run)
-  app.post("/api/autopilot/run", async (req, res) => {
+  app.post(["/api/autopilot/run", "/autopilot/run"], async (req, res) => {
     try {
       const { leads, config, dailySentCount } = req.body || {};
 
@@ -707,7 +729,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   });
 
   // 5. Inbound Webhook for Resend (/api/webhooks/resend-inbound)
-  app.post("/api/webhooks/resend-inbound", async (req, res) => {
+  app.post(["/api/webhooks/resend-inbound", "/webhooks/resend-inbound"], async (req, res) => {
     try {
       const payload = req.body || {};
       const data = payload.data || payload;
@@ -778,7 +800,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   });
 
   // 6. Query pending inbound events (for frontend sync)
-  app.get("/api/webhooks/inbound-events", async (req, res) => {
+  app.get(["/api/webhooks/inbound-events", "/webhooks/inbound-events"], async (req, res) => {
     let events: InboundEmailEvent[] = [];
     if (supabase) {
       const { data, error } = await supabase
@@ -795,7 +817,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   });
 
   // 7. Clear or acknowledge inbound events
-  app.post("/api/webhooks/clear-inbound-events", async (req, res) => {
+  app.post(["/api/webhooks/clear-inbound-events", "/webhooks/clear-inbound-events"], async (req, res) => {
     const { ids } = req.body || {};
     let remaining = 0;
     if (supabase) {
@@ -810,25 +832,34 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
     res.json({ success: true, remaining });
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+  // Vite dev middleware or static serving for standalone server execution (not used in Vercel serverless)
+  async function setupViteAndListen() {
+    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else if (!process.env.VERCEL) {
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+
+    if (!process.env.VERCEL) {
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  setupViteAndListen().catch((err) => {
+    console.error("Failed to start Vite / server listener:", err);
   });
-}
 
-startServer();
+  export default app;
+  export { app };
 
