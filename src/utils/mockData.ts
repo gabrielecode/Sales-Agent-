@@ -1,4 +1,37 @@
-import { ProductConfig, IntentClassification } from '../types';
+import { ProductConfig, IntentClassification, OfferType } from '../types';
+
+export function getFunnelAssetsForOfferType(offerType?: OfferType) {
+  if (offerType === 'digital_product' || offerType === 'software') {
+    return {
+      awareness: [
+        'Guida PDF: Come ottimizzare i processi con il nostro prodotto digitale',
+        'Checklist: I 5 criteri fondamentali per scegliere la soluzione software ideale',
+      ],
+      evaluation: [
+        'Video demo prodotto e panoramica funzionalità chiave',
+        'Pagina prezzi e confronto piani / ROI stimato',
+      ],
+      purchase: [
+        'Prova gratuita 14 giorni senza carta di credito',
+        'Prenotazione call di setup guidato con il nostro product specialist (15 min)',
+      ],
+    };
+  }
+  return {
+    awareness: [
+      'Guida PDF: Come scalare le vendite con affiliazioni ed e-commerce',
+      'Checklist: I 5 errori da evitare nelle collaborazioni digitali',
+    ],
+    evaluation: [
+      'Demo video interattiva della piattaforma partner',
+      'Case study: +42% di margine medio per creator e shop partner',
+    ],
+    purchase: [
+      'Link di attivazione immediata programma partner con bonus benvenuto',
+      'Prenotazione call di onboarding 1-a-1 gratuita (15 min)',
+    ],
+  };
+}
 
 export const DEFAULT_CONFIG: ProductConfig = {
   productName: 'Swiss Affiliate Booster',
@@ -15,20 +48,7 @@ export const DEFAULT_CONFIG: ProductConfig = {
   emailFromName: 'Sales Agent',
   emailFromAddress: '',
   emailReplyTo: 'risposte@inbound.sititicino.ch',
-  funnelAssets: {
-    awareness: [
-      'Guida PDF: Come scalare le vendite con affiliazioni ed e-commerce',
-      'Checklist: I 5 errori da evitare nelle collaborazioni digitali',
-    ],
-    evaluation: [
-      'Demo video interattiva della piattaforma partner',
-      'Case study: +42% di margine medio per creator e shop partner',
-    ],
-    purchase: [
-      'Link di attivazione immediata programma partner con bonus benvenuto',
-      'Prenotazione call di onboarding 1-a-1 gratuita (15 min)',
-    ],
-  },
+  funnelAssets: getFunnelAssetsForOfferType('affiliate'),
   openRouterModel: 'meta-llama/llama-3-8b-instruct:free',
 };
 

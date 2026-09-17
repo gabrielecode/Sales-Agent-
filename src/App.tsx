@@ -704,6 +704,14 @@ export default function App() {
                   config={config}
                   onUpdateLeadMessage={handleUpdateLeadMessage}
                   onSendMessages={handleSendMessages}
+                  onLeadsUpdated={(updatedLeads) => {
+                    setLeads((prev) =>
+                      prev.map((l) => {
+                        const found = updatedLeads.find((ul) => ul.id === l.id);
+                        return found || l;
+                      })
+                    );
+                  }}
                 />
               </div>
             )}
@@ -715,6 +723,19 @@ export default function App() {
                   onSimulateIncomingResponses={handleSimulateIncomingResponses}
                   onTakeAction={handleTakeAction}
                   onCloseOpportunity={onCloseOpportunity}
+                  onLeadReplied={(leadId, responseData) => {
+                    setLeads((prev) =>
+                      prev.map((l) =>
+                        l.id === leadId
+                          ? {
+                              ...l,
+                              status: 'replied',
+                              response: responseData,
+                            }
+                          : l
+                      )
+                    );
+                  }}
                 />
               </div>
             )}

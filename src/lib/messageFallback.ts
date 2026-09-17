@@ -1,4 +1,4 @@
-import { Lead, ProductConfig, FunnelStage } from '../types';
+import { Lead, ProductConfig, FunnelStage, OfferType } from '../types';
 import { getFunnelStage } from './funnelStage';
 
 export function generateLocalMessageFallback(
@@ -8,6 +8,7 @@ export function generateLocalMessageFallback(
     commissionRate?: string;
     productDescription?: string;
     funnelAssets?: { awareness: string[]; evaluation: string[]; purchase: string[] };
+    offerType?: OfferType;
   },
   forcedStage?: FunnelStage
 ): { subject: string; body: string } {
@@ -17,10 +18,12 @@ export function generateLocalMessageFallback(
   const productName = config.productName || 'Nostro Prodotto';
   const commissionRate = config.commissionRate || '20%';
   const productDesc = config.productDescription || 'Soluzione dedicata per aumentare le vendite';
+  const offerType = config.offerType || 'affiliate';
+  const isDigitalOrSoftware = offerType === 'digital_product' || offerType === 'software';
 
   const awarenessAsset = config.funnelAssets?.awareness?.[0] || 'la nostra guida pratica introduttiva per creator ed e-commerce';
   const evaluationAsset = config.funnelAssets?.evaluation?.[0] || 'la demo video e il case study di approfondimento';
-  const purchaseAsset = config.funnelAssets?.purchase?.[0] || 'il link per attivare subito il tuo account partner e la prova gratuita';
+  const purchaseAsset = config.funnelAssets?.purchase?.[0] || 'il link per attivare subito il tuo account e la prova gratuita';
 
   if (lead.language === 'en') {
     const hook = isInformal
@@ -42,19 +45,31 @@ export function generateLocalMessageFallback(
     } else if (stage === 'evaluation') {
       subject = `Evaluation details & case study • ${lead.shopName} & ${productName}`;
       body = isInformal
-        ? `Following up on our exchange, ${productName} (${productDesc}) provides a ${commissionRate} revenue share. Here is our dedicated evaluation material: ${evaluationAsset}.`
-        : `Following up on our discussions, ${productName} (${productDesc}) is structured to maximize partner margins (${commissionRate}). We have prepared ${evaluationAsset} for your evaluation.`;
+        ? (isDigitalOrSoftware
+            ? `Following up on our exchange, ${productName} (${productDesc}) offers a free trial and launch discount (${commissionRate}). Here is our dedicated evaluation material: ${evaluationAsset}.`
+            : `Following up on our exchange, ${productName} (${productDesc}) provides a ${commissionRate} revenue share. Here is our dedicated evaluation material: ${evaluationAsset}.`)
+        : (isDigitalOrSoftware
+            ? `Following up on our discussions, ${productName} (${productDesc}) is structured with subscription plans and launch discounts (${commissionRate}). We have prepared ${evaluationAsset} for your evaluation.`
+            : `Following up on our discussions, ${productName} (${productDesc}) is structured to maximize partner margins (${commissionRate}). We have prepared ${evaluationAsset} for your evaluation.`);
       cta = isInformal
         ? `Would you like a 10-minute walkthrough or access to our staging sandbox?`
         : `Would you be open to an exploratory 10-minute review or receiving the detailed product specs?`;
     } else {
       // purchase
-      subject = `Ready to activate your partner agreement • ${lead.shopName}`;
+      subject = isDigitalOrSoftware
+        ? `Ready to activate your account & free trial • ${lead.shopName}`
+        : `Ready to activate your partner agreement • ${lead.shopName}`;
       body = isInformal
-        ? `Great connecting with you! We're ready to onboard ${lead.shopName} with ${commissionRate} commission and dedicated priority support. You can start right away with: ${purchaseAsset}.`
-        : `Thank you for your partnership interest. We have prepared your dedicated onboarding agreement (${commissionRate} commission structure) and access details: ${purchaseAsset}.`;
+        ? (isDigitalOrSoftware
+            ? `Great connecting with you! We're ready to set up ${lead.shopName} with account activation and launch discount (${commissionRate}). You can start right away with: ${purchaseAsset}.`
+            : `Great connecting with you! We're ready to onboard ${lead.shopName} with ${commissionRate} commission and dedicated priority support. You can start right away with: ${purchaseAsset}.`)
+        : (isDigitalOrSoftware
+            ? `Thank you for your interest. We have prepared your account activation and subscription details (${commissionRate} launch discount structure): ${purchaseAsset}.`
+            : `Thank you for your partnership interest. We have prepared your dedicated onboarding agreement (${commissionRate} commission structure) and access details: ${purchaseAsset}.`);
       cta = isInformal
-        ? `Let me know if you'd like me to activate your referral tracking link today, or if you prefer a quick onboarding call.`
+        ? (isDigitalOrSoftware
+            ? `Let me know if you'd like me to activate your free trial or subscription today, or if you prefer a quick onboarding call.`
+            : `Let me know if you'd like me to activate your referral tracking link today, or if you prefer a quick onboarding call.`)
         : `Please let us know if we may proceed with the account activation or schedule a brief onboarding session.`;
     }
 
@@ -84,20 +99,32 @@ export function generateLocalMessageFallback(
   } else if (stage === 'evaluation') {
     subject = `Approfondimento e demo • ${lead.shopName} & ${productName}`;
     body = isInformal
-      ? `In merito al nostro contatto, ${productName} (${productDesc}) offre una provvigione del ${commissionRate}. Per darti subito piena visibilità sui risultati reali, abbiamo predisposto: "${evaluationAsset}".`
-      : `Facendo seguito al nostro scambio, confermiamo che la soluzione ${productName} (${productDesc}) prevede una remunerazione partner del ${commissionRate}. Abbiamo preparato un dossier di valutazione completo: "${evaluationAsset}".`;
+      ? (isDigitalOrSoftware
+          ? `In merito al nostro contatto, ${productName} (${productDesc}) offre una prova gratuita e uno sconto lancio (${commissionRate}). Per darti subito piena visibilità sui risultati reali, abbiamo predisposto: "${evaluationAsset}".`
+          : `In merito al nostro contatto, ${productName} (${productDesc}) offre una provvigione del ${commissionRate}. Per darti subito piena visibilità sui risultati reali, abbiamo predisposto: "${evaluationAsset}".`)
+      : (isDigitalOrSoftware
+          ? `Facendo seguito al nostro scambio, confermiamo che la soluzione ${productName} (${productDesc}) prevede un abbonamento con condizioni di sconto lancio (${commissionRate}). Abbiamo preparato un dossier di valutazione completo: "${evaluationAsset}".`
+          : `Facendo seguito al nostro scambio, confermiamo che la soluzione ${productName} (${productDesc}) prevede una remunerazione partner del ${commissionRate}. Abbiamo preparato un dossier di valutazione completo: "${evaluationAsset}".`);
     cta = isInformal
       ? `Ti andrebbe di dare un'occhiata alla demo o fare un rapido confronto di 10 minuti?`
       : `Sareste disponibili per un breve approfondimento di 10 minuti o preferite ricevere la documentazione tecnica?`;
   } else {
     // purchase
-    subject = `Attivazione partnership & condizioni riservate • ${lead.shopName}`;
+    subject = isDigitalOrSoftware
+      ? `Attivazione account & prova gratuita • ${lead.shopName}`
+      : `Attivazione partnership & condizioni riservate • ${lead.shopName}`;
     body = isInformal
-      ? `Siamo entusiasti di collaborare con ${lead.shopName}! Abbiamo predisposto le condizioni partner concordate (${commissionRate} di provvigione) e il materiale di avvio: "${purchaseAsset}".`
-      : `Siamo lieti di confermare i termini della collaborazione per ${lead.shopName} con remunerazione del ${commissionRate} e supporto dedicato. Abbiamo predisposto: "${purchaseAsset}".`;
+      ? (isDigitalOrSoftware
+          ? `Siamo entusiasti di accogliere ${lead.shopName}! Abbiamo predisposto l'attivazione dell'account e lo sconto lancio concordato (${commissionRate}) e il materiale di avvio: "${purchaseAsset}".`
+          : `Siamo entusiasti di collaborare con ${lead.shopName}! Abbiamo predisposto le condizioni partner concordate (${commissionRate} di provvigione) e il materiale di avvio: "${purchaseAsset}".`)
+      : (isDigitalOrSoftware
+          ? `Siamo lieti di confermare l'attivazione dell'account per ${lead.shopName} con abbonamento dedicato e condizioni di sconto lancio (${commissionRate}). Abbiamo predisposto: "${purchaseAsset}".`
+          : `Siamo lieti di confermare i termini della collaborazione per ${lead.shopName} con remunerazione del ${commissionRate} e supporto dedicato. Abbiamo predisposto: "${purchaseAsset}".`);
     cta = isInformal
-      ? `Confermi che possiamo attivare il tuo codice/link partner oggi stesso, o preferisci fare prima una call di 10 minuti?`
-      : `Possiamo procedere con l'attivazione ufficiale dei link o gradite concordare una sessione breve di onboarding?`;
+      ? (isDigitalOrSoftware
+          ? `Confermi che possiamo attivare la tua prova gratuita o l'abbonamento oggi stesso, o preferisci fare prima una call di 10 minuti?`
+          : `Confermi che possiamo attivare il tuo codice/link partner oggi stesso, o preferisci fare prima una call di 10 minuti?`)
+      : `Possiamo procedere con l'attivazione ufficiale dell'account o gradite concordare una sessione breve di onboarding?`;
   }
 
   return {

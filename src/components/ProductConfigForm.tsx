@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProductConfig, OfferType } from '../types';
+import { getFunnelAssetsForOfferType } from '../utils/mockData';
 import { Settings, Save, Upload, Zap, CheckCircle2, Bot, Play, Layers, Sparkles, Clock, BookOpen, FileCheck, Award } from 'lucide-react';
 
 interface ProductConfigFormProps {
@@ -25,20 +26,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
 }) => {
   const [formData, setFormData] = useState<ProductConfig>({
     ...config,
-    funnelAssets: config.funnelAssets || {
-      awareness: [
-        'Guida PDF: Come scalare le vendite con affiliazioni ed e-commerce',
-        'Checklist: I 5 errori da evitare nelle collaborazioni digitali',
-      ],
-      evaluation: [
-        'Demo video interattiva della piattaforma partner',
-        'Case study: +42% di margine medio per creator e shop partner',
-      ],
-      purchase: [
-        'Link di attivazione immediata programma partner con bonus benvenuto',
-        'Prenotazione call di onboarding 1-a-1 gratuita (15 min)',
-      ],
-    },
+    funnelAssets: config.funnelAssets || getFunnelAssetsForOfferType(config.offerType),
   });
   const [csvInput, setCsvInput] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -146,7 +134,14 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                 <label className="block text-xs font-medium text-slate-700 mb-1">Tipo Offerta</label>
                 <select
                   value={formData.offerType}
-                  onChange={(e) => setFormData({ ...formData, offerType: e.target.value as OfferType })}
+                  onChange={(e) => {
+                    const newType = e.target.value as OfferType;
+                    setFormData({
+                      ...formData,
+                      offerType: newType,
+                      funnelAssets: getFunnelAssetsForOfferType(newType),
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
                 >
                   <option value="affiliate">Affiliazione (% sulle vendite)</option>
@@ -157,7 +152,11 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Commissione / Payout</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  {(formData.offerType === 'digital_product' || formData.offerType === 'software')
+                    ? 'Prezzo/Piano (opzionale)'
+                    : 'Commissione / Payout'}
+                </label>
                 <input
                   type="text"
                   value={formData.commissionRate}

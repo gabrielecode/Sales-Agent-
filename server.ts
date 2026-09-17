@@ -2,10 +2,15 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 import { generateLocalMessageFallback } from "./src/lib/messageFallback";
 import { FunnelStage, IntentClassification } from "./src/types";
 
 dotenv.config();
+
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 interface InboundEmailEvent {
   id: string;
@@ -20,7 +25,6 @@ interface InboundEmailEvent {
   receivedAt: string;
 }
 
-const inboundEvents: InboundEmailEvent[] = [];
 
 // Helper heuristic classification when AI is unavailable
 function classifyTextLocally(text: string): { intent: IntentClassification; reason: string } {
@@ -152,25 +156,52 @@ async function generateMessageInternal(
           ? `Asset reali disponibili per lo stadio ${stage.toUpperCase()}:\n- ` + stageAssets.join("\n- ")
           : "Nessun asset personalizzato registrato (cita una risorsa autorevole e specifica per questo settore).";
 
+      const offerType = config?.offerType || "affiliate";
+      const isDigitalOrSoftware = offerType === "digital_product" || offerType === "software";
+
       let stageGuideline = "";
       if (stage === "awareness") {
-        stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione).
+        if (isDigitalOrSoftware) {
+          stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione - Prodotto Digitale/Software).
+- Obiettivo: Condividere valore, educare e catturare l'attenzione sul problema risolto dal software/prodotto digitale, senza alcuna pressione d'acquisto.
+- CTA: Invita a leggere o ricevere una risorsa gratuita (whitepaper, case study, checklist o report di settore). Nessun cenno a commissioni o partner.
+${stageAssetsText}
+Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
+        } else {
+          stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione).
 - Obiettivo: Condividere valore, educare e catturare l'attenzione senza NESSUNA pressione di acquisto o chiusura immediata.
 - CTA: Invita a leggere o ricevere una risorsa gratuita (guida pratica, checklist, report sui trend). Non richiedere acquisti o vincoli.
 ${stageAssetsText}
 Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
+        }
       } else if (stage === "evaluation") {
-        stageGuideline = `STADIO DEL FUNNEL: EVALUATION (Fase di Valutazione e Considerazione).
+        if (isDigitalOrSoftware) {
+          stageGuideline = `STADIO DEL FUNNEL: EVALUATION (Fase di Valutazione e Considerazione - Prodotto Digitale/Software).
+- Obiettivo: Dimostrare ROI concreto, efficienza, funzionalità chiave e affidabilità della soluzione software/digitale.
+- CTA: Invita a guardare una demo video interattiva, esplorare un case study o prenotare una demo personalizzata.
+${stageAssetsText}
+Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
+        } else {
+          stageGuideline = `STADIO DEL FUNNEL: EVALUATION (Fase di Valutazione e Considerazione).
 - Obiettivo: Dimostrare ROI concreto, percentuali di conversione e affidabilità della soluzione.
 - CTA: Invita a guardare una demo video interattiva, esplorare un case study o consultare la scheda tecnica dettagliata.
 ${stageAssetsText}
 Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
+        }
       } else {
-        stageGuideline = `STADIO DEL FUNNEL: PURCHASE (Fase di Chiusura & Attivazione Partnership).
+        if (isDigitalOrSoftware) {
+          stageGuideline = `STADIO DEL FUNNEL: PURCHASE (Fase di Chiusura & Attivazione - Prodotto Digitale/Software).
+- Obiettivo: Agevolare la transizione finale all'acquisto o alla prova gratuita con condizioni vantaggiose.
+- CTA: Proponi la prova gratuita, l'acquisto diretto o una demo 1-a-1. Evita assolutamente qualsiasi riferimento a link referral, codici partner o commissioni.
+${stageAssetsText}
+Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
+        } else {
+          stageGuideline = `STADIO DEL FUNNEL: PURCHASE (Fase di Chiusura & Attivazione Partnership).
 - Obiettivo: Agevolare la transizione finale e l'onboarding con condizioni riservate e vantaggiose.
 - CTA: Proponi l'attivazione immediata del link referral/codice partner, una prova gratuita o una breve call di onboarding 1-a-1.
 ${stageAssetsText}
 Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
+        }
       }
 
       const systemPrompt = `Sei un Senior Copywriter B2B specializzato in Conversion Rate Optimization (CRO) e deliverability email.
@@ -200,9 +231,9 @@ Rispondi ESCLUSIVAMENTE in formato JSON puro:
 
 Dati dell'offerta:
 - Prodotto da promuovere: ${config?.productName || "Nostro Prodotto"}
-- Modello / Tipo Offerta: ${config?.offerType || "affiliate"} (Commissione: ${config?.commissionRate || "20%"})
+- Modello / Tipo Offerta: ${offerType}${isDigitalOrSoftware ? "" : ` (Commissione: ${config?.commissionRate || "20%"})`}
 - Descrizione Prodotto: ${config?.productDescription || ""}
-- Target: ${config?.targetAudience || "B2B Partners"}`;
+- Target: ${config?.targetAudience || (isDigitalOrSoftware ? "Clienti / Utenti finali" : "B2B Partners")}`;
 
       const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -320,10 +351,19 @@ async function startServer() {
 
   app.use(express.json({ limit: "10mb" }));
 
-  app.get("/api/health", (req, res) => {
+  app.get("/api/health", async (req, res) => {
+    let inboundEventsCount = 0;
+    if (supabase) {
+      const { count, error } = await supabase
+        .from("inbound_events")
+        .select("*", { count: "exact", head: true });
+      if (!error && count !== null) {
+        inboundEventsCount = count;
+      }
+    }
     res.json({
       status: "ok",
-      inboundEventsCount: inboundEvents.length,
+      inboundEventsCount,
     });
   });
 
@@ -549,9 +589,24 @@ async function startServer() {
         receivedAt: new Date().toISOString(),
       };
 
-      inboundEvents.push(event);
-      if (inboundEvents.length > 150) {
-        inboundEvents.shift();
+      if (supabase) {
+        const { error } = await supabase.from("inbound_events").insert([
+          {
+            id: event.id,
+            from: event.from,
+            senderEmail: event.senderEmail,
+            to: event.to,
+            inReplyTo: event.inReplyTo,
+            subject: event.subject,
+            text: event.text,
+            intent: event.intent,
+            reason: event.reason,
+            receivedAt: event.receivedAt,
+          },
+        ]);
+        if (error) {
+          console.error("Errore inserimento Supabase inbound_events:", error);
+        }
       }
 
       console.log(`[Resend Inbound Webhook] Ricevuta email da ${senderEmail} - Intento: ${classification.intent}`);
@@ -568,24 +623,36 @@ async function startServer() {
   });
 
   // 6. Query pending inbound events (for frontend sync)
-  app.get("/api/webhooks/inbound-events", (req, res) => {
-    res.json({ events: inboundEvents });
+  app.get("/api/webhooks/inbound-events", async (req, res) => {
+    let events: InboundEmailEvent[] = [];
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("inbound_events")
+        .select("*")
+        .order("receivedAt", { ascending: false });
+      if (!error && data) {
+        events = data as InboundEmailEvent[];
+      } else if (error) {
+        console.error("Errore lettura Supabase inbound_events:", error);
+      }
+    }
+    res.json({ events });
   });
 
   // 7. Clear or acknowledge inbound events
-  app.post("/api/webhooks/clear-inbound-events", (req, res) => {
+  app.post("/api/webhooks/clear-inbound-events", async (req, res) => {
     const { ids } = req.body || {};
-    if (Array.isArray(ids) && ids.length > 0) {
-      const set = new Set(ids);
-      for (let i = inboundEvents.length - 1; i >= 0; i--) {
-        if (set.has(inboundEvents[i].id)) {
-          inboundEvents.splice(i, 1);
-        }
+    let remaining = 0;
+    if (supabase) {
+      if (Array.isArray(ids) && ids.length > 0) {
+        await supabase.from("inbound_events").delete().in("id", ids);
+      } else {
+        await supabase.from("inbound_events").delete().neq("id", "");
       }
-    } else {
-      inboundEvents.length = 0;
+      const { data } = await supabase.from("inbound_events").select("*");
+      remaining = data ? data.length : 0;
     }
-    res.json({ success: true, remaining: inboundEvents.length });
+    res.json({ success: true, remaining });
   });
 
   // Vite middleware for development

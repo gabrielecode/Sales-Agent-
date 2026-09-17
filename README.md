@@ -27,22 +27,34 @@ EMAIL_FROM_NAME="Sales Agent"
 EMAIL_FROM_ADDRESS="noreply@sititicino.ch"
 EMAIL_REPLY_TO="rispondi@inbound.sititicino.ch"
 
+# Supabase configuration for persistent inbound webhook events
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+
 # URL di hosting
 APP_URL="https://tuo-dominio.vercel.app"
 ```
 
 ---
 
-## 📡 Endpoint API del Server
-
-- **`POST /api/generate-message`**:
-  - Riceve `{ lead, config }`
-  - Utilizza la chiave OpenRouter da `config.openRouterApiKey` o `process.env.OPENROUTER_API_KEY`
-  - Restituisce `{ subject, body }` con fallback locale automatico.
-- **`POST /api/send-email`**:
-  - Riceve `{ to, subject, body, config }`
-  - Invia l'email tramite Resend (`config.resendApiKey` o `process.env.RESEND_API_KEY`).
-  - Restituisce `{ success, simulated, messageId, error }`.
+## 📡 Inbound Webhooks & Persistenza con Supabase
+- **Storage Persistente Supabase (`inbound_events`)**: Gli eventi webhook in entrata ricevuti da Resend (`/api/webhooks/resend-inbound`) vengono salvati direttamente su una tabella PostgreSQL **Supabase** (`inbound_events`), garantendo la persistenza scalabile compatibile con ambienti serverless e distribuiti.
+- **Schema Tabella Supabase (`inbound_events`)**:
+  ```sql
+  create table inbound_events (
+    id text primary key,
+    "from" text,
+    "senderEmail" text,
+    "to" text,
+    "inReplyTo" text,
+    subject text,
+    text text,
+    intent text,
+    reason text,
+    "receivedAt" text
+  );
+  ```
+- **Polling Client-Side & Automazione Periodica**: Il tab "Inbound & Risposte" effettua il polling periodico degli eventi in entrata ogni 18 secondi, abbinandoli automaticamente ai lead per indirizzo email (`senderEmail`). L'autopilot periodico esegue l'analisi e l'invio automatizzato ogni 30 minuti mentre l'applicazione è aperta e attiva nel browser.
 
 ---
 

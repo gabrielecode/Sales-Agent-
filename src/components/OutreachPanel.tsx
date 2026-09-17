@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lead, ProductConfig, FunnelStage } from '../types';
 import { generateOutreachMessageWithAI } from '../lib/openrouter';
 import { sendOutreachEmail } from '../lib/resendClient';
+import { executeAutopilotRun, AutopilotRunResult } from '../lib/autopilot';
 import { getFunnelStage, FUNNEL_STAGE_LABELS, FUNNEL_STAGE_COLORS, getFunnelStageDescription } from '../lib/funnelStage';
 import {
   getDailySentCount,
@@ -29,6 +30,7 @@ interface OutreachPanelProps {
   config: ProductConfig;
   onUpdateLeadMessage: (leadId: string, subject: string, body: string) => void;
   onSendMessages: (leadIds: string[]) => void;
+  onLeadsUpdated?: (updatedLeads: Lead[]) => void;
 }
 
 interface SendReport {
@@ -44,6 +46,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
   config,
   onUpdateLeadMessage,
   onSendMessages,
+  onLeadsUpdated,
 }) => {
   const selectedLeads = leads.filter((l) => l.selected);
   const [activeLeadIndex, setActiveLeadIndex] = useState<number>(0);
@@ -56,6 +59,63 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
   const [includeSuspiciousEmails, setIncludeSuspiciousEmails] = useState<boolean>(false);
   const [dailySent, setDailySent] = useState<number>(() => getDailySentCount());
   const [copied, setCopied] = useState<boolean>(false);
+
+  // Autopilot State & Effects
+  const [isAutopilotRunning, setIsAutopilotRunning] = useState<boolean>(false);
+  const [autopilotResult, setAutopilotResult] = useState<AutopilotRunResult | null>(null);
+  const [lastRunAt, setLastRunAt] = useState<string | null>(null);
+  const [nextRunInSeconds, setNextRunInSeconds] = useState<number>(30 * 60);
+
+  const handleRunAutopilotNow = async () => {
+    if (isAutopilotRunning) return;
+    setIsAutopilotRunning(true);
+    setAutopilotResult(null);
+    try {
+      const res = await executeAutopilotRun(leads, config);
+      setAutopilotResult(res);
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setLastRunAt(nowStr);
+      setNextRunInSeconds(30 * 60);
+      if (res.status === 'success' && res.updatedLeads && res.updatedLeads.length > 0 && onLeadsUpdated) {
+        onLeadsUpdated(res.updatedLeads);
+      }
+    } catch (err: any) {
+      setAutopilotResult({
+        status: 'error',
+        message: err?.message || 'Errore esecuzione autopilot',
+        processedCount: 0,
+        updatedLeads: [],
+      });
+    } finally {
+      setIsAutopilotRunning(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!config.autoOutreach) return;
+
+    // Run automatically on mount / activation
+    handleRunAutopilotNow();
+
+    const intervalId = setInterval(() => {
+      handleRunAutopilotNow();
+    }, 30 * 60 * 1000); // every 30 minutes
+
+    const countdownId = setInterval(() => {
+      setNextRunInSeconds((prev) => (prev > 0 ? prev - 1 : 30 * 60));
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      clearInterval(countdownId);
+    };
+  }, [config.autoOutreach]);
+
+  const formatCountdown = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}m ${s < 10 ? '0' : ''}${s}s`;
+  };
 
   useEffect(() => {
     setDailySent(getDailySentCount());
@@ -205,22 +265,61 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
     }
   };
 
-  if (selectedLeads.length === 0) {
-    return (
-      <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-12 text-center text-slate-500 shadow-xs max-w-lg mx-auto">
-        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
-          <Mail className="w-6 h-6" />
-        </div>
-        <h3 className="text-base font-semibold text-slate-900 mb-1">Nessun lead selezionato per l'Outreach</h3>
-        <p className="text-xs text-slate-500">
-          Torna al tab "Contacts & Leads" e seleziona uno o più lead con la casella di spunta per generare ed inviare messaggi.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4 sm:space-y-5 w-full">
+    <div className="space-y-4 sm:space-y-6 w-full">
+      {/* Autopilot Automation Control Card */}
+      <div className="bg-slate-900 text-white rounded-xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${config.autoOutreach ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+            <h4 className="text-sm font-bold tracking-tight">Autopilot Engine {config.autoOutreach ? '(Attivo)' : '(Disattivato)'}</h4>
+          </div>
+          <p className="text-xs text-slate-300">
+            {config.autoOutreach
+              ? 'L\'autopilot analizza i lead idonei e invia automaticamente i messaggi di Awareness in background.'
+              : 'Attiva l\'autopilot nelle impostazioni (Config) per abilitare l\'esecuzione periodica.'}
+          </p>
+          <div className="flex items-center gap-4 text-[11px] text-slate-400 pt-1">
+            <span>Ultima esecuzione: <strong className="text-white">{lastRunAt || 'Mai'}</strong></span>
+            {config.autoOutreach && (
+              <span>Prossima esecuzione tra: <strong className="text-emerald-400 font-mono">{formatCountdown(nextRunInSeconds)}</strong></span>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleRunAutopilotNow}
+          disabled={isAutopilotRunning}
+          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shrink-0"
+        >
+          <Sparkles className={`w-3.5 h-3.5 ${isAutopilotRunning ? 'animate-spin' : ''}`} />
+          {isAutopilotRunning ? 'Esecuzione Autopilot...' : 'Esegui Autopilot Ora'}
+        </button>
+      </div>
+
+      {autopilotResult && (
+        <div className={`p-3.5 rounded-xl text-xs border ${
+          autopilotResult.status === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : 'bg-amber-50 border-amber-200 text-amber-900'
+        }`}>
+          <span className="font-bold">Risultato Autopilot:</span> {autopilotResult.message}
+        </div>
+      )}
+
+      {selectedLeads.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-12 text-center text-slate-500 shadow-xs max-w-lg mx-auto">
+          <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400">
+            <Mail className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-semibold text-slate-900 mb-1">Nessun lead selezionato per l'Outreach manuale</h3>
+          <p className="text-xs text-slate-500">
+            Puoi eseguire l'Autopilot qui sopra per contattare automaticamente i lead con punteggio elevato, oppure torna al tab "Contacts & Leads" per selezionare lead specifici.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4 sm:space-y-5">
       {/* Header with responsive actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
         <div>
@@ -537,6 +636,8 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
           </div>
         )}
       </div>
+        </div>
+      )}
     </div>
   );
 };
