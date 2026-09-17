@@ -149,7 +149,18 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url: formData.productUrl }),
                       });
-                      const data = await res.json();
+                      const contentType = res.headers.get("content-type");
+                      let data: any = {};
+                      if (contentType && contentType.includes("application/json")) {
+                        data = await res.json();
+                      } else {
+                        const text = await res.text();
+                        throw new Error(
+                          res.ok
+                            ? "Risposta non valida dal server."
+                            : `Errore server (${res.status}). Assicurati che il server backend (Express) sia attivo.`
+                        );
+                      }
                       if (!res.ok) throw new Error(data.error || 'Errore durante l\'analisi');
                       setPendingAnalysis(data.analysis);
                     } catch (err: any) {
