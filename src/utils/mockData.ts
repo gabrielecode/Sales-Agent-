@@ -49,7 +49,7 @@ export const DEFAULT_CONFIG: ProductConfig = {
   emailFromAddress: '',
   emailReplyTo: 'risposte@inbound.sititicino.ch',
   funnelAssets: getFunnelAssetsForOfferType('affiliate'),
-  openRouterModel: 'meta-llama/llama-3-8b-instruct:free',
+  openRouterModel: 'openai/gpt-4o-mini',
 };
 
 export function simulateSimulatedResponses(): { text: string; intent: IntentClassification }[] {

@@ -220,6 +220,15 @@ ${stageGuideline}
 Rispondi ESCLUSIVAMENTE in formato JSON puro:
 {"subject": "...", "body": "..."}`;
 
+      let analysisText = "";
+      if (config?.productAnalysis) {
+        analysisText = `\nAnalisi AI del Prodotto (dalla landing page ${config.productAnalysis.sourceUrl || ''}):
+- Proposta di Valore: ${config.productAnalysis.valueProposition || ''}
+- Feature Chiave: ${(config.productAnalysis.keyFeatures || []).join(', ')}
+- Pricing / Monetizzazione: ${config.productAnalysis.pricingHint || 'Non specificato'}
+- Tone of Voice: ${config.productAnalysis.tone || ''}`;
+      }
+
       const userPrompt = `Genera un'email di outreach altamente personalizzata per il seguente lead:
 - Destinatario: ${lead.shopName}
 - Piattaforma: ${lead.platform}
@@ -233,7 +242,7 @@ Dati dell'offerta:
 - Prodotto da promuovere: ${config?.productName || "Nostro Prodotto"}
 - Modello / Tipo Offerta: ${offerType}${isDigitalOrSoftware ? "" : ` (Commissione: ${config?.commissionRate || "20%"})`}
 - Descrizione Prodotto: ${config?.productDescription || ""}
-- Target: ${config?.targetAudience || (isDigitalOrSoftware ? "Clienti / Utenti finali" : "B2B Partners")}`;
+- Target: ${config?.targetAudience || (isDigitalOrSoftware ? "Clienti / Utenti finali" : "B2B Partners")}${analysisText}`;
 
       const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -383,6 +392,152 @@ async function startServer() {
       emailReplyToConfigured,
       emailReplyToAddress: process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "",
     });
+  });
+
+  // 0. Analyze Product URL via AI
+  app.post("/api/analyze-product", async (req, res) => {
+    try {
+      const { url } = req.body || {};
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ error: "URL non valido o mancante" });
+      }
+
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch (e) {
+        return res.status(400).json({ error: "Formato URL non valido (usa http:// o https://)" });
+      }
+
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return res.status(400).json({ error: "Protocollo non supportato. Sono ammessi solo http e https." });
+      }
+
+      const hostname = parsedUrl.hostname.toLowerCase();
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '0.0.0.0' ||
+        hostname.startsWith('10.') ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('172.') ||
+        hostname === '[::1]' ||
+        hostname.endsWith('.local')
+      ) {
+        return res.status(403).json({ error: "Accesso a indirizzi locali o privati non consentito per motivi di sicurezza." });
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      let htmlRes: Response;
+      try {
+        htmlRes = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+        });
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        return res.status(400).json({ error: `Impossibile raggiungere l'URL: ${err.message || 'Timeout o errore di rete'}` });
+      }
+      clearTimeout(timeoutId);
+
+      if (!htmlRes.ok) {
+        return res.status(400).json({ error: `Errore HTTP dal sito remoto: ${htmlRes.status} ${htmlRes.statusText}` });
+      }
+
+      const contentLength = htmlRes.headers.get("content-length");
+      if (contentLength && parseInt(contentLength, 10) > 3 * 1024 * 1024) {
+        return res.status(400).json({ error: "La pagina supera la dimensione massima consentita (3MB)." });
+      }
+
+      const htmlText = await htmlRes.text();
+      if (htmlText.length > 3 * 1024 * 1024) {
+        return res.status(400).json({ error: "La pagina supera la dimensione massima consentita (3MB)." });
+      }
+
+      const cleanedText = htmlText
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const truncatedText = cleanedText.slice(0, 6000);
+
+      const apiKey = (process.env.OPENROUTER_API_KEY || "").trim();
+      const model = process.env.OPENROUTER_DEFAULT_MODEL || "openai/gpt-4o-mini";
+
+      if (!apiKey) {
+        return res.status(500).json({ error: "Chiave OpenRouter non configurata sul server." });
+      }
+
+      const analysisPrompt = `Sei un esperto analista di marketing e product manager. Analizza il seguente contenuto testuale estratto da una landing page/sito prodotto ed estrai informazioni strutturate in formato JSON.
+
+Contenuto della pagina:
+"""
+${truncatedText}
+"""
+
+Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
+{
+  "valueProposition": "string (1-2 frasi chiavi che descrivono il valore unico e principale del prodotto)",
+  "keyFeatures": ["string", "string", "string"] (max 5 feature o punti di forza chiave concreti),
+  "targetAudience": "string (chi è il cliente ideale o target di riferimento)",
+  "tone": "string (es. Professionale, Informale, Innovativo, Tecnico)",
+  "pricingHint": "string o null (informazioni su prezzi, abbonamenti o modelli di revenue se presenti)"
+}`;
+
+      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://affiliate-sales-agent.local",
+          "X-Title": "Affiliate Sales Agent",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: analysisPrompt }],
+          temperature: 0.2,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const errBody = await aiRes.text();
+        return res.status(502).json({ error: `Errore dal provider AI (OpenRouter): ${aiRes.status}`, details: errBody });
+      }
+
+      const aiData = (await aiRes.json()) as any;
+      const aiContent = aiData.choices?.[0]?.message?.content || "";
+      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.status(500).json({ error: "L'IA non ha restituito un formato JSON valido.", raw: aiContent });
+      }
+
+      const parsedAnalysis = JSON.parse(jsonMatch[0]);
+      return res.json({
+        success: true,
+        analysis: {
+          ...parsedAnalysis,
+          analyzedAt: new Date().toISOString(),
+          sourceUrl: url,
+        },
+      });
+
+    } catch (err: any) {
+      console.error("Errore analisi prodotto:", err);
+      res.status(500).json({ error: err.message || "Errore interno durante l'analisi del prodotto." });
+    }
   });
 
   // 1. Generate Outreach Message with Funnel Stage awareness

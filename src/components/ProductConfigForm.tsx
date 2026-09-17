@@ -30,6 +30,9 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
   });
   const [csvInput, setCsvInput] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [pendingAnalysis, setPendingAnalysis] = useState<any | null>(null);
   const [serverStatus, setServerStatus] = useState<{
     openRouterConfigured: boolean;
     resendConfigured: boolean;
@@ -117,6 +120,124 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                 onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
               />
+            </div>
+
+            {/* URL AI Product Analyzer */}
+            <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-2">
+              <label className="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                Analisi Automatica URL Prodotto (AI)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://tuosito.com/landing-page"
+                  value={formData.productUrl || ''}
+                  onChange={(e) => setFormData({ ...formData, productUrl: e.target.value })}
+                  className="flex-1 px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  disabled={isAnalyzing || !formData.productUrl}
+                  onClick={async () => {
+                    if (!formData.productUrl) return;
+                    setIsAnalyzing(true);
+                    setAnalysisError(null);
+                    try {
+                      const res = await fetch('/api/analyze-product', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: formData.productUrl }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || 'Errore durante l\'analisi');
+                      setPendingAnalysis(data.analysis);
+                    } catch (err: any) {
+                      setAnalysisError(err.message || 'Errore di connessione al server');
+                    } finally {
+                      setIsAnalyzing(false);
+                    }
+                  }}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-semibold transition shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Analizzando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Analizza URL
+                    </>
+                  )}
+                </button>
+              </div>
+              {analysisError && <p className="text-[11px] text-rose-600 font-medium">{analysisError}</p>}
+
+              {pendingAnalysis && (
+                <div className="p-3 bg-white border border-indigo-200 rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-bold text-indigo-900 border-b border-indigo-100 pb-1.5">
+                    <span>Risultati Analisi AI Estratti</span>
+                    <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Pronto per l'applicazione</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-700">Proposta di Valore:</span>
+                    <p className="text-slate-600 mt-0.5">{pendingAnalysis.valueProposition}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-700">Feature Chiave:</span>
+                    <ul className="list-disc list-inside text-slate-600 mt-0.5">
+                      {pendingAnalysis.keyFeatures?.map((f: string, i: number) => (
+                        <li key={i}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                    <div><span className="font-semibold">Target:</span> {pendingAnalysis.targetAudience}</div>
+                    <div><span className="font-semibold">Tono:</span> {pendingAnalysis.tone}</div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2 border-t border-indigo-50">
+                    <button
+                      type="button"
+                      onClick={() => setPendingAnalysis(null)}
+                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium cursor-pointer"
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          productDescription: pendingAnalysis.valueProposition,
+                          targetAudience: pendingAnalysis.targetAudience,
+                          productAnalysis: pendingAnalysis,
+                        });
+                        setPendingAnalysis(null);
+                      }}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Applica a Campi
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {formData.productAnalysis && !pendingAnalysis && (
+                <div className="flex items-center justify-between text-[11px] text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Analisi AI attiva ({formData.productAnalysis.keyFeatures?.length || 0} feature chiave registrate)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, productAnalysis: undefined })}
+                    className="text-slate-500 hover:text-rose-600 underline text-[10px] cursor-pointer"
+                  >
+                    Rimuovi
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>

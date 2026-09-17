@@ -31,6 +31,16 @@ export interface ProductConfig {
   emailFromName?: string;
   emailFromAddress?: string;
   emailReplyTo?: string;
+  productUrl?: string;
+  productAnalysis?: {
+    valueProposition: string;
+    keyFeatures: string[];
+    targetAudience: string;
+    tone: string;
+    pricingHint: string | null;
+    analyzedAt: string;
+    sourceUrl: string;
+  };
 }
 
 export interface BusinessSignals {

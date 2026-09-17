@@ -17,7 +17,11 @@ export function generateLocalMessageFallback(
   const isInformal = tone === 'Informale';
   const productName = config.productName || 'Nostro Prodotto';
   const commissionRate = config.commissionRate || '20%';
-  const productDesc = config.productDescription || 'Soluzione dedicata per aumentare le vendite';
+  const keyFeatures = (config as any).productAnalysis?.keyFeatures || [];
+  const selectedFeature = keyFeatures.length > 0 ? keyFeatures[0] : '';
+  const productDesc = selectedFeature 
+    ? `${config.productDescription || 'Soluzione dedicata'} (Punto di forza chiave: ${selectedFeature})`
+    : (config.productDescription || 'Soluzione dedicata per aumentare le vendite');
   const offerType = config.offerType || 'affiliate';
   const isDigitalOrSoftware = offerType === 'digital_product' || offerType === 'software';
 
