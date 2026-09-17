@@ -149,13 +149,13 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
     }
   };
 
-  const handleGenerateAllMessages = async () => {
+  const handleGenerateAllMessages = async (forceRegenerate: boolean = false) => {
     if (isGenerating) return;
     setIsGenerating(true);
     try {
       for (let i = 0; i < selectedLeads.length; i++) {
         const lead = selectedLeads[i];
-        if (!lead.message?.body) {
+        if (forceRegenerate || !lead.message?.body) {
           const res = await generateOutreachMessageWithAI(lead, config);
           onUpdateLeadMessage(lead.id, res.subject, res.body);
           // 350ms delay between sequential calls to prevent 429 rate limiting
@@ -339,12 +339,22 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
         <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={handleGenerateAllMessages}
+            onClick={() => handleGenerateAllMessages(true)}
             disabled={isGenerating || isSending}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            title="Rigenera tutti i messaggi selezionati usando i dati del prodotto attivo"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-            {isGenerating ? 'Generazione in corso...' : 'Genera per Tutti'}
+            {isGenerating ? 'Rigenerazione...' : 'Rigenera Tutti'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleGenerateAllMessages(false)}
+            disabled={isGenerating || isSending}
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            title="Genera il messaggio solo per i contatti che non ne hanno ancora uno"
+          >
+            Genera Mancanti
           </button>
           <button
             type="button"
@@ -359,6 +369,41 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
               : `Invia (${eligibleLeads.length})`}
           </button>
         </div>
+      </div>
+
+      {/* Active Product & URL Context Bar */}
+      <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 sm:p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span className="font-bold text-slate-900">Prodotto Attivo per le Email:</span>
+            <span className="font-semibold text-indigo-800 bg-white px-2 py-0.5 rounded border border-indigo-200">
+              {config.productName || 'Nessun prodotto'}
+            </span>
+            {config.productAnalysis && (
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
+                Analisi AI URL Attiva ({config.productAnalysis.keyFeatures?.length || 0} feature)
+              </span>
+            )}
+          </div>
+          <p className="text-slate-600 text-[11px] line-clamp-1">
+            <strong className="text-slate-700">Link nella CTA:</strong>{' '}
+            <span className="text-indigo-600 underline font-mono">
+              {config.productUrl || config.productAnalysis?.sourceUrl || 'https://swissaffiliatebooster.ch'}
+            </span>
+            {config.productDescription && ` — ${config.productDescription}`}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => handleGenerateAllMessages(true)}
+          disabled={isGenerating || isSending || selectedLeads.length === 0}
+          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition shrink-0 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+          Aggiorna Email con {config.productName}
+        </button>
       </div>
 
       {/* Quota and Deliverability Bar */}

@@ -1,11 +1,21 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import { generateLocalMessageFallback } from "./src/lib/messageFallback";
 import { FunnelStage, IntentClassification } from "./src/types";
 
 dotenv.config();
+
+let geminiClient: GoogleGenAI | null = null;
+function getGemini(): GoogleGenAI | null {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!geminiClient && apiKey) {
+    geminiClient = new GoogleGenAI({ apiKey });
+  }
+  return geminiClient;
+}
 
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -147,88 +157,70 @@ async function generateMessageInternal(
   const model = (config?.openRouterModel || "meta-llama/llama-3-8b-instruct:free").trim();
   const tone = lead.toneOfVoice || "Formale";
 
-  if (apiKey) {
-    try {
-      const stageAssets = config?.funnelAssets?.[stage] || [];
-      const stageAssetsText =
-        stageAssets.length > 0
-          ? `Asset reali disponibili per lo stadio ${stage.toUpperCase()}:\n- ` + stageAssets.join("\n- ")
-          : "Nessun asset personalizzato registrato (cita una risorsa autorevole e specifica per questo settore).";
+  const stageAssets = config?.funnelAssets?.[stage] || [];
+  const stageAssetsText =
+    stageAssets.length > 0
+      ? `Asset reali disponibili per lo stadio ${stage.toUpperCase()}:\n- ` + stageAssets.join("\n- ")
+      : "Nessun asset personalizzato registrato (cita una risorsa autorevole e specifica per questo settore).";
 
-      const offerType = config?.offerType || "affiliate";
-      const isDigitalOrSoftware = offerType === "digital_product" || offerType === "software";
+  const offerType = config?.offerType || config?.productAnalysis?.offerType || "affiliate";
+  const isDigitalOrSoftware = offerType === "digital_product" || offerType === "software";
+  const targetUrl = (config?.productUrl || config?.productAnalysis?.sourceUrl || "https://swissaffiliatebooster.ch").trim();
+  const productName = config?.productName || config?.productAnalysis?.productName || "Nostro Prodotto";
+  const valueProp = config?.productAnalysis?.valueProposition || config?.productDescription || "";
+  const keyFeatures = config?.productAnalysis?.keyFeatures || [];
 
-      let stageGuideline = "";
-      if (stage === "awareness") {
-        if (isDigitalOrSoftware) {
-          stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione - Prodotto Digitale/Software).
-- Obiettivo: Condividere valore, educare e catturare l'attenzione sul problema risolto dal software/prodotto digitale, senza alcuna pressione d'acquisto.
-- CTA: Invita a leggere o ricevere una risorsa gratuita (whitepaper, case study, checklist o report di settore). Nessun cenno a commissioni o partner.
-${stageAssetsText}
-Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
-        } else {
-          stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione).
-- Obiettivo: Condividere valore, educare e catturare l'attenzione senza NESSUNA pressione di acquisto o chiusura immediata.
-- CTA: Invita a leggere o ricevere una risorsa gratuita (guida pratica, checklist, report sui trend). Non richiedere acquisti o vincoli.
-${stageAssetsText}
-Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
-        }
-      } else if (stage === "evaluation") {
-        if (isDigitalOrSoftware) {
-          stageGuideline = `STADIO DEL FUNNEL: EVALUATION (Fase di Valutazione e Considerazione - Prodotto Digitale/Software).
-- Obiettivo: Dimostrare ROI concreto, efficienza, funzionalità chiave e affidabilità della soluzione software/digitale.
-- CTA: Invita a guardare una demo video interattiva, esplorare un case study o prenotare una demo personalizzata.
-${stageAssetsText}
-Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
-        } else {
-          stageGuideline = `STADIO DEL FUNNEL: EVALUATION (Fase di Valutazione e Considerazione).
-- Obiettivo: Dimostrare ROI concreto, percentuali di conversione e affidabilità della soluzione.
-- CTA: Invita a guardare una demo video interattiva, esplorare un case study o consultare la scheda tecnica dettagliata.
-${stageAssetsText}
-Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
-        }
-      } else {
-        if (isDigitalOrSoftware) {
-          stageGuideline = `STADIO DEL FUNNEL: PURCHASE (Fase di Chiusura & Attivazione - Prodotto Digitale/Software).
-- Obiettivo: Agevolare la transizione finale all'acquisto o alla prova gratuita con condizioni vantaggiose.
-- CTA: Proponi la prova gratuita, l'acquisto diretto o una demo 1-a-1. Evita assolutamente qualsiasi riferimento a link referral, codici partner o commissioni.
-${stageAssetsText}
-Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
-        } else {
-          stageGuideline = `STADIO DEL FUNNEL: PURCHASE (Fase di Chiusura & Attivazione Partnership).
-- Obiettivo: Agevolare la transizione finale e l'onboarding con condizioni riservate e vantaggiose.
-- CTA: Proponi l'attivazione immediata del link referral/codice partner, una prova gratuita o una breve call di onboarding 1-a-1.
-${stageAssetsText}
-Se opportuno, cita direttamente l'asset sopra nel messaggio.`;
-        }
-      }
+  let stageGuideline = "";
+  if (stage === "awareness") {
+    stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione).
+- Obiettivo: Condividere valore, educare e catturare l'attenzione sul problema risolto da ${productName}, senza alcuna pressione d'acquisto o vendita aggressiva.
+- CTA: Invita a consultare una risorsa gratuita, guida o analisi gratuita della landing page, integrando SEMPRE il link diretto: ${targetUrl}.
+${stageAssetsText}`;
+  } else if (stage === "evaluation") {
+    stageGuideline = `STADIO DEL FUNNEL: EVALUATION (Fase di Valutazione e Considerazione).
+- Obiettivo: Dimostrare ROI concreto, efficienza, funzionalità chiave (${keyFeatures.slice(0, 2).join(", ")}) e affidabilità della soluzione ${productName}.
+- CTA: Invita a guardare la demo interattiva, esplorare la proposta commerciale o consultare le specifiche a questo link: ${targetUrl}.
+${stageAssetsText}`;
+  } else {
+    stageGuideline = `STADIO DEL FUNNEL: PURCHASE (Fase di Chiusura & Attivazione).
+- Obiettivo: Agevolare la transizione finale all'acquisto, prova gratuita o attivazione partnership per ${productName}.
+- CTA: Proponi l'attivazione immediata dell'account o della prova gratuita/partnership tramite il link diretto: ${targetUrl}.
+${stageAssetsText}`;
+  }
 
-      const systemPrompt = `Sei un Senior Copywriter B2B specializzato in Conversion Rate Optimization (CRO) e deliverability email.
+  const systemPrompt = `Sei un copywriter d'élite specializzato in email outreach personalizzate B2B e Conversion Rate Optimization.
 Devi seguire RIGOROSAMENTE la formula di Copywriting: HOOK + BODY + CTA.
 
-Regole tassative per la redazione dell'email:
-1. TONO DI VOCE: Scrivi l'email usando il tono di voce indicato (${tone}):
+REGOLE TASSATIVE DI GENERAZIONE:
+1. INCLUSIONE LINK OBBLIGATORIA: Se tra i dati forniti è presente un URL o link (del prodotto, landing page o risorsa), DEVI inserirlo SEMPRE nella Call to Action finale o nel corpo dell'email come collegamento cliccabile coerente col testo (${targetUrl}). NON omettere mai il link.
+2. ADATTAMENTO FUNNEL:
+   - Awareness: Inserisci il link presentandolo come risorsa di approfondimento, guida o analisi gratuita (NON omettere mai il link).
+   - Consideration / Decision / Evaluation: Inserisci il link diretto alla pagina del prodotto o alla proposta commerciale.
+   - Purchase / Chiusura: Inserisci il link diretto per l'attivazione immediata o la pagina di onboarding.
+3. TONO DI VOCE: Scrivi l'email usando il tono di voce indicato (${tone}):
    - Se 'Informale': usa un tono diretto e cordiale tra pari del settore (Tu / Ciao).
    - Se 'Formale': usa un registro professionale e rispettoso (Lei / Buongiorno / Gentile).
-2. HOOK (GANCIO): Inizia SEMPRE con un Hook (Gancio) iper-personalizzato basato sul settore o sulle caratteristiche del partner per catturare subito l'attenzione.
-3. BODY (CORPO): Continua con il Corpo del testo incentrato sul problema/soluzione e sui vantaggi concreti, allineato allo stadio del funnel.
-4. CTA (CALL TO ACTION): Chiudi SEMPRE con una CTA chiara, coerente con lo stadio del funnel:
+4. HOOK (GANCIO): Inizia SEMPRE con un Hook iper-personalizzato basato sul settore del destinatario (${lead.industry || lead.platform}) e collegalo al problema che ${productName} risolve.
+5. BODY (CORPO): Continua con il Corpo incentrato sui dati reali e specifici del prodotto (Proposta di Valore e Caratteristiche Chiave estratte dall'analisi), allineato allo stadio del funnel:
 ${stageGuideline}
-5. ANTI-SPAM & DELIVERABILITY: Evita parole da spam come 'Compra ora', 'Offertissima', punti esclamativi multipli o formule aggressive di vendita.
+6. ANTI-SPAM & DELIVERABILITY: Evita parole da spam come 'Compra ora', 'Offertissima', punti esclamativi multipli o formule aggressive di vendita.
 
 Rispondi ESCLUSIVAMENTE in formato JSON puro:
-{"subject": "...", "body": "..."}`;
+{"subject": "...", "body": "..."}
+È severamente vietato generare codice (TypeScript, JavaScript, HTML), note sviluppatore o spiegazioni tecniche.`;
 
-      let analysisText = "";
-      if (config?.productAnalysis) {
-        analysisText = `\nAnalisi AI del Prodotto (dalla landing page ${config.productAnalysis.sourceUrl || ''}):
-- Proposta di Valore: ${config.productAnalysis.valueProposition || ''}
-- Feature Chiave: ${(config.productAnalysis.keyFeatures || []).join(', ')}
-- Pricing / Monetizzazione: ${config.productAnalysis.pricingHint || 'Non specificato'}
-- Tone of Voice: ${config.productAnalysis.tone || ''}`;
-      }
+  let analysisText = "";
+  if (config?.productAnalysis) {
+    analysisText = `\nDATI ESTRATTI DALL'ANALISI DELLA LANDING PAGE (${config.productAnalysis.sourceUrl || targetUrl}):
+- Nome Prodotto: ${productName}
+- Proposta di Valore Unica: ${valueProp}
+- Caratteristiche e Punti di Forza: ${keyFeatures.join("; ")}
+- Target di Riferimento: ${config.productAnalysis.targetAudience || config?.targetAudience || "Operatori di settore"}
+- Pricing / Offerta: ${config.productAnalysis.pricingHint || "Condizioni dedicate"}
+- Tono del Prodotto: ${config.productAnalysis.tone || "Professionale"}`;
+  }
 
-      const userPrompt = `Genera un'email di outreach altamente personalizzata per il seguente lead:
+  const userPrompt = `Genera un'email di outreach altamente personalizzata per il seguente lead:
 - Destinatario: ${lead.shopName}
 - Piattaforma: ${lead.platform}
 - Settore / Nicchia: ${lead.industry || "Non specificato"}
@@ -237,12 +229,45 @@ Rispondi ESCLUSIVAMENTE in formato JSON puro:
 - Località: ${lead.city || "Svizzera"} (${lead.canton || "CH"})
 - Note profilo: ${lead.shortNotes || ""}
 
-Dati dell'offerta:
-- Prodotto da promuovere: ${config?.productName || "Nostro Prodotto"}
+DATI DEL PRODOTTO DA PROMUOVERE:
+- Nome Prodotto: ${productName}
+- Link / URL OBBLIGATORIO da inserire nella CTA/Corpo: ${targetUrl}
 - Modello / Tipo Offerta: ${offerType}${isDigitalOrSoftware ? "" : ` (Commissione: ${config?.commissionRate || "20%"})`}
-- Descrizione Prodotto: ${config?.productDescription || ""}
-- Target: ${config?.targetAudience || (isDigitalOrSoftware ? "Clienti / Utenti finali" : "B2B Partners")}${analysisText}`;
+- Descrizione / Proposta di Valore: ${valueProp || config?.productDescription || ""}
+- Target: ${config?.targetAudience || (isDigitalOrSoftware ? "Clienti / Utenti finali" : "B2B Partners")}${analysisText}
 
+IMPORTANTE: Usa i dati del prodotto (${productName}) e le sue caratteristiche uniche per creare un messaggio originale e differente. Inserisci il link ${targetUrl} nella CTA!`;
+
+  // 1. Try Gemini API first (natively available in AI Studio)
+  const gemini = getGemini();
+  if (gemini) {
+    try {
+      const geminiRes = await gemini.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: `${systemPrompt}\n\n${userPrompt}`,
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+      const content = geminiRes.text || "";
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.subject && parsed.body) {
+          return {
+            subject: parsed.subject,
+            body: parsed.body,
+          };
+        }
+      }
+    } catch (geminiErr) {
+      console.warn("Chiamata Gemini fallita in generateMessageInternal, fallback a OpenRouter/locale:", geminiErr);
+    }
+  }
+
+  // 2. Try OpenRouter if API key is provided
+  if (apiKey) {
+    try {
       const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -283,6 +308,7 @@ Dati dell'offerta:
     }
   }
 
+  // 3. Robust dynamic local fallback using the analyzed product data
   return generateLocalMessageFallback(lead, config || { productName: "Nostro Prodotto" }, stage);
 }
 
@@ -369,11 +395,91 @@ app.use((req, res, next) => {
   next();
 });
 
-// Normalize request URL if routed through Vercel rewrites where /api might be rewritten to /api
+// Helper to extract structured analysis from HTML directly as fallback or primary
+function extractProductAnalysisFromHtml(htmlText: string, cleanedText: string, url: string) {
+  const titleMatch = htmlText.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const rawTitle = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : "";
+  const title = rawTitle.replace(/\s*[|\-—–].*$/, "").trim() || rawTitle;
+
+  const metaDescMatch = htmlText.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']+)["']/i)
+    || htmlText.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["'](?:description|og:description)["']/i);
+  const metaDescription = metaDescMatch ? metaDescMatch[1].replace(/<[^>]+>/g, "").trim() : "";
+
+  const h1 = Array.from(htmlText.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi))
+    .map(m => m[1].replace(/<[^>]+>/g, "").trim())
+    .filter(t => t.length > 5);
+
+  const h2 = Array.from(htmlText.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi))
+    .map(m => m[1].replace(/<[^>]+>/g, "").trim())
+    .filter(t => t.length > 5 && !t.toLowerCase().includes("cookie") && !t.toLowerCase().includes("privacy"));
+
+  const liMatches = Array.from(htmlText.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
+    .map(m => m[1].replace(/<[^>]+>/g, "").trim())
+    .filter(t => t.length > 10 && t.length < 150 && !t.toLowerCase().includes("cookie") && !t.toLowerCase().includes("privacy"));
+
+  let derivedName = title;
+  if (!derivedName || derivedName.toLowerCase().includes("home") || derivedName.length < 3) {
+    try {
+      const parsedUrl = new URL(url);
+      derivedName = parsedUrl.hostname.replace(/^www\./, "").split(".")[0];
+      derivedName = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
+    } catch {
+      derivedName = h1[0] || "Prodotto Online";
+    }
+  }
+
+  const valueProposition = metaDescription || h1[0] || (title ? `${title} — Soluzione innovativa per professionisti e aziende.` : "Piattaforma e servizio dedicato.");
+
+  const candidateFeatures = h2.length >= 3 ? h2.slice(0, 5) : (liMatches.length >= 3 ? liMatches.slice(0, 5) : [...h2, ...liMatches].slice(0, 5));
+  const keyFeatures = candidateFeatures.length > 0 ? candidateFeatures : [
+    "Creazione rapida e gestione automatizzata",
+    "Piattaforma cloud accessibile da desktop e mobile",
+    "Funzionalità conformi alle normative e standard di settore",
+    "Supporto e onboarding dedicato"
+  ];
+
+  let targetAudience = "Aziende, professionisti e attività commerciali";
+  const lowerText = cleanedText.toLowerCase();
+  if (lowerText.includes("artigian") || lowerText.includes("idraulic") || lowerText.includes("elettricist")) {
+    targetAudience = "Artigiani, professionisti e ditte individuali (Svizzera e Ticino)";
+  } else if (lowerText.includes("e-commerce") || lowerText.includes("negozi online") || lowerText.includes("shopify")) {
+    targetAudience = "Brand e-commerce e negozi online";
+  } else if (lowerText.includes("creator") || lowerText.includes("influencer")) {
+    targetAudience = "Content creator e influencer digitali";
+  } else if (lowerText.includes("b2b") || lowerText.includes("pmi")) {
+    targetAudience = "PMI e aziende B2B";
+  }
+
+  let offerType: "software" | "digital_product" | "affiliate" | "collab" | "sponsorship" = "digital_product";
+  if (lowerText.includes("software") || lowerText.includes("saas") || lowerText.includes("app") || lowerText.includes("piattaforma") || lowerText.includes("cloud")) {
+    offerType = "software";
+  } else if (lowerText.includes("affiliazione") || lowerText.includes("affiliate") || lowerText.includes("provvigione") || lowerText.includes("commission")) {
+    offerType = "affiliate";
+  }
+
+  const priceMatch = cleanedText.match(/(?:CHF|€|\$)\s*\d+[\.,]?\d*(?:\s*\/\s*(?:mese|anno|month|year))?/i)
+    || (lowerText.includes("gratis") || lowerText.includes("free") ? "Versione di prova gratuita disponibile" : null);
+
+  return {
+    productName: derivedName,
+    valueProposition,
+    keyFeatures,
+    targetAudience,
+    tone: "Professionale",
+    pricingHint: typeof priceMatch === "string" ? priceMatch : (priceMatch ? priceMatch[0] : null),
+    offerType,
+    sourceUrl: url,
+  };
+}
+
+// Normalize request URL if routed through Vercel rewrites
 app.use((req, _res, next) => {
-  const forwardedUrl = (req.headers["x-matched-path"] || req.headers["x-forwarded-uri"]) as string;
-  if (req.url === "/api" && typeof forwardedUrl === "string" && forwardedUrl.startsWith("/api/")) {
+  const forwardedUrl = (req.headers["x-matched-path"] || req.headers["x-forwarded-uri"] || req.headers["x-invoke-path"]) as string;
+  if ((req.url === "/api" || req.url === "/" || req.url.startsWith("/api/[...")) && typeof forwardedUrl === "string" && forwardedUrl.length > 0) {
     req.url = forwardedUrl;
+  }
+  if (req.query && typeof req.query.path === "string") {
+    req.url = "/" + req.query.path.replace(/^\//, "");
   }
   next();
 });
@@ -496,14 +602,9 @@ app.get(["/api/config-status", "/config-status"], (req, res) => {
 
       const truncatedText = cleanedText.slice(0, 6000);
 
-      const apiKey = (process.env.OPENROUTER_API_KEY || "").trim();
-      const model = process.env.OPENROUTER_DEFAULT_MODEL || "openai/gpt-4o-mini";
+      const heuristicAnalysis = extractProductAnalysisFromHtml(htmlText, cleanedText, url);
 
-      if (!apiKey) {
-        return res.status(500).json({ error: "Chiave OpenRouter non configurata sul server." });
-      }
-
-      const analysisPrompt = `Sei un esperto analista di marketing e product manager. Analizza il seguente contenuto testuale estratto da una landing page/sito prodotto ed estrai informazioni strutturate in formato JSON.
+      const analysisPrompt = `Sei un esperto analista di marketing e product manager specializzato in B2B outreach. Analizza il seguente contenuto testuale estratto da una landing page/sito prodotto (URL: ${url}) ed estrai informazioni strutturate in formato JSON per personalizzare email di vendita e partnership.
 
 Contenuto della pagina:
 """
@@ -512,45 +613,113 @@ ${truncatedText}
 
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
 {
-  "valueProposition": "string (1-2 frasi chiavi che descrivono il valore unico e principale del prodotto)",
-  "keyFeatures": ["string", "string", "string"] (max 5 feature o punti di forza chiave concreti),
+  "productName": "string (Nome reale e specifico del prodotto/brand/servizio estratto dalla pagina)",
+  "valueProposition": "string (1-2 frasi chiare che descrivono il valore unico e principale del prodotto)",
+  "keyFeatures": ["string", "string", "string"] (3-5 feature o punti di forza chiave concreti ed esclusivi di questo prodotto),
   "targetAudience": "string (chi è il cliente ideale o target di riferimento)",
   "tone": "string (es. Professionale, Informale, Innovativo, Tecnico)",
-  "pricingHint": "string o null (informazioni su prezzi, abbonamenti o modelli di revenue se presenti)"
+  "pricingHint": "string o null (informazioni su prezzi, abbonamenti, prova gratuita o sconti se presenti)",
+  "offerType": "software" | "digital_product" | "affiliate" | "collab" | "sponsorship"
 }`;
 
-      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://affiliate-sales-agent.local",
-          "X-Title": "Affiliate Sales Agent",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: analysisPrompt }],
-          temperature: 0.2,
-        }),
-      });
-
-      if (!aiRes.ok) {
-        const errBody = await aiRes.text();
-        return res.status(502).json({ error: `Errore dal provider AI (OpenRouter): ${aiRes.status}`, details: errBody });
+      // 1. Try Gemini API first (available in AI Studio environment)
+      const gemini = getGemini();
+      if (gemini) {
+        try {
+          const geminiRes = await gemini.models.generateContent({
+            model: "gemini-3.8-flash",
+            contents: analysisPrompt,
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+          const text = geminiRes.text || "";
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsedAnalysis = JSON.parse(jsonMatch[0]);
+            return res.json({
+              success: true,
+              analysis: {
+                ...heuristicAnalysis,
+                ...parsedAnalysis,
+                sourceUrl: url,
+                analyzedAt: new Date().toISOString(),
+              },
+            });
+          }
+        } catch (geminiErr) {
+          console.warn("Chiamata Gemini fallita per analyze-product, fallback a OpenRouter/euristica:", geminiErr);
+        }
       }
 
-      const aiData = (await aiRes.json()) as any;
-      const aiContent = aiData.choices?.[0]?.message?.content || "";
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        return res.status(500).json({ error: "L'IA non ha restituito un formato JSON valido.", raw: aiContent });
+      const apiKey = (
+        req.body?.openRouterApiKey ||
+        req.body?.openRouterKey ||
+        req.body?.apiKey ||
+        process.env.OPENROUTER_API_KEY ||
+        ""
+      ).trim();
+
+      const model = (
+        req.body?.openRouterModel ||
+        req.body?.model ||
+        process.env.OPENROUTER_DEFAULT_MODEL ||
+        "openai/gpt-4o-mini"
+      ).trim();
+
+      // 2. If OpenRouter API key is provided, attempt OpenRouter AI analysis
+      if (apiKey) {
+        try {
+
+          const controllerAI = new AbortController();
+          const aiTimeout = setTimeout(() => controllerAI.abort(), 12000);
+
+          const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            signal: controllerAI.signal,
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://affiliate-sales-agent.local",
+              "X-Title": "Affiliate Sales Agent",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "user", content: analysisPrompt }],
+              temperature: 0.2,
+            }),
+          });
+          clearTimeout(aiTimeout);
+
+          if (aiRes.ok) {
+            const aiData = (await aiRes.json()) as any;
+            const aiContent = aiData.choices?.[0]?.message?.content || "";
+            const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsedAnalysis = JSON.parse(jsonMatch[0]);
+              return res.json({
+                success: true,
+                analysis: {
+                  ...heuristicAnalysis,
+                  ...parsedAnalysis,
+                  analyzedAt: new Date().toISOString(),
+                  sourceUrl: url,
+                },
+              });
+            }
+          } else {
+            console.warn(`OpenRouter ha restituito status ${aiRes.status}, utilizzo estrazione intelligente della pagina`);
+          }
+        } catch (aiErr) {
+          console.warn("Chiamata AI fallita o timeout, utilizzo analisi euristica estratta dalla pagina:", aiErr);
+        }
       }
 
-      const parsedAnalysis = JSON.parse(jsonMatch[0]);
+      // Seamless fallback to heuristic analysis extracted directly from the live HTML page
       return res.json({
         success: true,
         analysis: {
-          ...parsedAnalysis,
+          ...heuristicAnalysis,
           analyzedAt: new Date().toISOString(),
           sourceUrl: url,
         },

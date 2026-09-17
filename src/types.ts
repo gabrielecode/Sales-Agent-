@@ -33,11 +33,13 @@ export interface ProductConfig {
   emailReplyTo?: string;
   productUrl?: string;
   productAnalysis?: {
+    productName?: string;
     valueProposition: string;
     keyFeatures: string[];
     targetAudience: string;
     tone: string;
     pricingHint: string | null;
+    offerType?: OfferType;
     analyzedAt: string;
     sourceUrl: string;
   };

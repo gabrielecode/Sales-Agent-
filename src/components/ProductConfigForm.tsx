@@ -12,6 +12,8 @@ interface ProductConfigFormProps {
   onTriggerAutopilot?: () => Promise<void>;
   isAutopilotRunning?: boolean;
   autopilotMessage?: string | null;
+  onNavigateToOutreach?: () => void;
+  onRegenerateAllLeadsWithConfig?: (newConfig: ProductConfig) => void;
 }
 
 export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
@@ -23,6 +25,8 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
   onTriggerAutopilot,
   isAutopilotRunning = false,
   autopilotMessage = null,
+  onNavigateToOutreach,
+  onRegenerateAllLeadsWithConfig,
 }) => {
   const [formData, setFormData] = useState<ProductConfig>({
     ...config,
@@ -147,7 +151,11 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                       const res = await fetch('/api/analyze-product', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: formData.productUrl }),
+                        body: JSON.stringify({
+                          url: formData.productUrl,
+                          openRouterApiKey: formData.openRouterApiKey || config.openRouterApiKey,
+                          openRouterModel: formData.openRouterModel || config.openRouterModel,
+                        }),
                       });
                       const contentType = res.headers.get("content-type");
                       let data: any = {};
@@ -155,14 +163,61 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                         data = await res.json();
                       } else {
                         const text = await res.text();
-                        throw new Error(
-                          res.ok
-                            ? "Risposta non valida dal server."
-                            : `Errore server (${res.status}). Assicurati che il server backend (Express) sia attivo.`
-                        );
+                        try {
+                          data = JSON.parse(text);
+                        } catch {
+                          throw new Error(
+                            res.ok
+                              ? "Risposta non valida dal server."
+                              : `Errore server (${res.status}): ${text.slice(0, 120) || "Servizio non raggiungibile"}`
+                          );
+                        }
                       }
-                      if (!res.ok) throw new Error(data.error || 'Errore durante l\'analisi');
-                      setPendingAnalysis(data.analysis);
+                      if (!res.ok) throw new Error(data.error || 'Errore durante l\'analisi del prodotto');
+                      if (!data.analysis) throw new Error('Nessun dato di analisi restituito');
+                      
+                      const analysis = data.analysis;
+                      const derivedName = analysis.productName || formData.productName || 'Nuovo Prodotto';
+                      const derivedValProp = analysis.valueProposition || formData.productDescription;
+                      const derivedTarget = analysis.targetAudience || formData.targetAudience;
+                      const derivedOffer = analysis.offerType || formData.offerType || 'digital_product';
+                      const effectiveUrl = formData.productUrl.trim();
+
+                      const newAssets = {
+                        awareness: [
+                          `Guida introduttiva e best practice per ${derivedName}`,
+                          `Report e analisi gratuita: come ${derivedName} risolve le criticità di settore`,
+                        ],
+                        evaluation: [
+                          `Demo video interattiva e panoramica delle feature di ${derivedName}`,
+                          `Confronto ROI, scheda tecnica e casi studio per ${derivedName}`,
+                        ],
+                        purchase: [
+                          `Link di attivazione account e onboarding prioritario per ${derivedName}: ${effectiveUrl}`,
+                          `Consulenza personalizzata e configurazione guidata per ${derivedName}`,
+                        ],
+                      };
+
+                      const updatedConfig: ProductConfig = {
+                        ...formData,
+                        productName: derivedName,
+                        productDescription: derivedValProp,
+                        targetAudience: derivedTarget,
+                        offerType: derivedOffer,
+                        productUrl: effectiveUrl,
+                        productAnalysis: {
+                          ...analysis,
+                          productName: derivedName,
+                          sourceUrl: effectiveUrl,
+                        },
+                        funnelAssets: newAssets,
+                      };
+
+                      setFormData(updatedConfig);
+                      onSaveConfig(updatedConfig);
+                      setPendingAnalysis(analysis);
+                      setSaveSuccess(true);
+                      setTimeout(() => setSaveSuccess(false), 4000);
                     } catch (err: any) {
                       setAnalysisError(err.message || 'Errore di connessione al server');
                     } finally {
@@ -187,66 +242,96 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               {analysisError && <p className="text-[11px] text-rose-600 font-medium">{analysisError}</p>}
 
               {pendingAnalysis && (
-                <div className="p-3 bg-white border border-indigo-200 rounded-xl space-y-2 text-xs">
-                  <div className="flex items-center justify-between font-bold text-indigo-900 border-b border-indigo-100 pb-1.5">
-                    <span>Risultati Analisi AI Estratti</span>
-                    <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Pronto per l'applicazione</span>
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between font-bold text-emerald-950 border-b border-emerald-200/70 pb-2">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      Dati Estratti & Applicati alla Configurazione!
+                    </span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-100/70 font-semibold px-2 py-0.5 rounded-full">
+                      Attivo per generazione email
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-800">Prodotto Rilevato:</span>
+                    <p className="text-slate-900 font-semibold mt-0.5">{formData.productName}</p>
                   </div>
                   <div>
                     <span className="font-semibold text-slate-700">Proposta di Valore:</span>
-                    <p className="text-slate-600 mt-0.5">{pendingAnalysis.valueProposition}</p>
+                    <p className="text-slate-700 mt-0.5">{formData.productDescription}</p>
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-700">Feature Chiave:</span>
-                    <ul className="list-disc list-inside text-slate-600 mt-0.5">
+                    <span className="font-semibold text-slate-700">Feature Chiave da includere nelle email:</span>
+                    <ul className="list-disc list-inside text-slate-700 mt-0.5 space-y-0.5">
                       {pendingAnalysis.keyFeatures?.map((f: string, i: number) => (
                         <li key={i}>{f}</li>
                       ))}
                     </ul>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-                    <div><span className="font-semibold">Target:</span> {pendingAnalysis.targetAudience}</div>
-                    <div><span className="font-semibold">Tono:</span> {pendingAnalysis.tone}</div>
+                    <div><span className="font-semibold text-slate-700">Target:</span> {formData.targetAudience}</div>
+                    <div><span className="font-semibold text-slate-700">Tono:</span> {pendingAnalysis.tone || 'Professionale'}</div>
+                    {pendingAnalysis.pricingHint && (
+                      <div className="col-span-2 text-indigo-800 bg-indigo-50/80 p-2 rounded-lg border border-indigo-100">
+                        <span className="font-semibold">Info Prezzo / Offerta:</span> {pendingAnalysis.pricingHint}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-end gap-2 pt-2 border-t border-indigo-50">
+                  
+                  {/* Action Shortcuts to Outreach */}
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2.5 border-t border-emerald-200/70">
+                    {onRegenerateAllLeadsWithConfig && (
+                      <button
+                        type="button"
+                        onClick={() => onRegenerateAllLeadsWithConfig(formData)}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-xs transition flex items-center gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Rigenera Email di Tutti i Lead con questo Prodotto
+                      </button>
+                    )}
+                    {onNavigateToOutreach && (
+                      <button
+                        type="button"
+                        onClick={onNavigateToOutreach}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-xs transition flex items-center gap-1.5"
+                      >
+                        Vai all'Outreach
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setPendingAnalysis(null)}
-                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium cursor-pointer"
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-medium cursor-pointer"
                     >
-                      Annulla
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData({
-                          ...formData,
-                          productDescription: pendingAnalysis.valueProposition,
-                          targetAudience: pendingAnalysis.targetAudience,
-                          productAnalysis: pendingAnalysis,
-                        });
-                        setPendingAnalysis(null);
-                      }}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold cursor-pointer flex items-center gap-1"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Applica a Campi
+                      Chiudi Scheda
                     </button>
                   </div>
                 </div>
               )}
 
               {formData.productAnalysis && !pendingAnalysis && (
-                <div className="flex items-center justify-between text-[11px] text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                <div className="flex items-center justify-between text-[11px] text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
                   <span className="flex items-center gap-1.5 font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Analisi AI attiva ({formData.productAnalysis.keyFeatures?.length || 0} feature chiave registrate)
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Analisi attiva per <strong>{formData.productName}</strong> ({formData.productAnalysis.keyFeatures?.length || 0} feature chiave registrate)
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, productAnalysis: undefined })}
-                    className="text-slate-500 hover:text-rose-600 underline text-[10px] cursor-pointer"
-                  >
-                    Rimuovi
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPendingAnalysis(formData.productAnalysis)}
+                      className="text-emerald-800 hover:underline font-semibold text-[11px] cursor-pointer"
+                    >
+                      Visualizza
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, productAnalysis: undefined })}
+                      className="text-slate-400 hover:text-rose-600 underline text-[10px] cursor-pointer"
+                    >
+                      Rimuovi
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

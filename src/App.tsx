@@ -754,6 +754,19 @@ export default function App() {
                   onUploadCSV={handleUploadCSV}
                   leadsCount={leads.length}
                   onOpenCSVModal={() => setIsCSVModalOpen(true)}
+                  onNavigateToOutreach={() => setActiveTab('outreach')}
+                  onRegenerateAllLeadsWithConfig={(newConfig) => {
+                    setConfig(newConfig);
+                    // Clear cached messages so newly generated emails adopt the new product analysis
+                    setLeads((prev) =>
+                      prev.map((l) => ({
+                        ...l,
+                        message: undefined,
+                      }))
+                    );
+                    setActiveTab('outreach');
+                    showToast(`Dati del prodotto "${newConfig.productName}" salvati. Pronto per generare email!`);
+                  }}
                 />
               </div>
             )}

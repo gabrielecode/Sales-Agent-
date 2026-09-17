@@ -15,19 +15,21 @@ export function generateLocalMessageFallback(
   const stage: FunnelStage = forcedStage || (lead.status ? getFunnelStage(lead as Lead) : 'awareness');
   const tone = lead.toneOfVoice || 'Formale';
   const isInformal = tone === 'Informale';
-  const productName = config.productName || 'Nostro Prodotto';
+  const productName = config.productName || (config as any).productAnalysis?.productName || 'Nostro Prodotto';
   const commissionRate = config.commissionRate || '20%';
   const keyFeatures = (config as any).productAnalysis?.keyFeatures || [];
-  const selectedFeature = keyFeatures.length > 0 ? keyFeatures[0] : '';
-  const productDesc = selectedFeature 
-    ? `${config.productDescription || 'Soluzione dedicata'} (Punto di forza chiave: ${selectedFeature})`
-    : (config.productDescription || 'Soluzione dedicata per aumentare le vendite');
-  const offerType = config.offerType || 'affiliate';
+  const primaryFeature = keyFeatures.length > 0 ? keyFeatures[0] : '';
+  const secondaryFeature = keyFeatures.length > 1 ? keyFeatures[1] : '';
+  const featureHighlight = primaryFeature ? ` (focus: ${primaryFeature}${secondaryFeature ? `, ${secondaryFeature}` : ''})` : '';
+  const valueProp = (config as any).productAnalysis?.valueProposition || config.productDescription || 'Soluzione dedicata per aumentare i risultati';
+  const productDesc = `${valueProp}${featureHighlight}`;
+  const offerType = config.offerType || (config as any).productAnalysis?.offerType || 'affiliate';
   const isDigitalOrSoftware = offerType === 'digital_product' || offerType === 'software';
+  const targetUrl = (config as any).productUrl || (config as any).productAnalysis?.sourceUrl || 'https://swissaffiliatebooster.ch';
 
-  const awarenessAsset = config.funnelAssets?.awareness?.[0] || 'la nostra guida pratica introduttiva per creator ed e-commerce';
-  const evaluationAsset = config.funnelAssets?.evaluation?.[0] || 'la demo video e il case study di approfondimento';
-  const purchaseAsset = config.funnelAssets?.purchase?.[0] || 'il link per attivare subito il tuo account e la prova gratuita';
+  const awarenessAsset = config.funnelAssets?.awareness?.[0] || `la guida e analisi approfondita su ${productName}`;
+  const evaluationAsset = config.funnelAssets?.evaluation?.[0] || `la demo interattiva e le specifiche di ${productName}`;
+  const purchaseAsset = config.funnelAssets?.purchase?.[0] || `il link di attivazione immediata di ${productName}`;
 
   if (lead.language === 'en') {
     const hook = isInformal
@@ -39,13 +41,13 @@ export function generateLocalMessageFallback(
     let subject = '';
 
     if (stage === 'awareness') {
-      subject = `Free resource & insights for ${lead.shopName}`;
+      subject = `Free insights & ${productName} resource for ${lead.shopName}`;
       body = isInformal
-        ? `We recently put together an actionable resource for businesses on ${lead.platform}: ${awarenessAsset}. No sales pitch—just practical takeaways to grow high-intent traffic.`
-        : `We prepared a curated research report for top stores on ${lead.platform}: ${awarenessAsset}. We believe this insight provides valuable perspective for your market in ${lead.city || 'Europe'}.`;
+        ? `We recently put together an actionable resource centered on ${productName} (${valueProp}) for businesses on ${lead.platform}. The material covers "${awarenessAsset}"${primaryFeature ? ` with a focus on ${primaryFeature}` : ''}. No sales pitch—just practical takeaways.`
+        : `We prepared a curated research report regarding ${productName} (${valueProp}) for top operators on ${lead.platform}: "${awarenessAsset}". We examine concrete efficiency gains${primaryFeature ? ` including ${primaryFeature}` : ''} for your market in ${lead.city || 'Europe'}.`;
       cta = isInformal
-        ? `Would you like me to send you the direct PDF link? No strings attached.`
-        : `May I send over a complimentary copy for your team to review?`;
+        ? `You can access the complimentary guide and overview directly here: ${targetUrl}. Let me know what you think!`
+        : `You may review the complimentary guide and research report directly here: ${targetUrl}. We remain at your disposal for any further questions.`;
     } else if (stage === 'evaluation') {
       subject = `Evaluation details & case study • ${lead.shopName} & ${productName}`;
       body = isInformal
@@ -56,8 +58,8 @@ export function generateLocalMessageFallback(
             ? `Following up on our discussions, ${productName} (${productDesc}) is structured with subscription plans and launch discounts (${commissionRate}). We have prepared ${evaluationAsset} for your evaluation.`
             : `Following up on our discussions, ${productName} (${productDesc}) is structured to maximize partner margins (${commissionRate}). We have prepared ${evaluationAsset} for your evaluation.`);
       cta = isInformal
-        ? `Would you like a 10-minute walkthrough or access to our staging sandbox?`
-        : `Would you be open to an exploratory 10-minute review or receiving the detailed product specs?`;
+        ? `Explore the product specifications and live demo directly here: ${targetUrl} — would you be open to a 10-minute walkthrough?`
+        : `You can access the complete product overview and commercial terms here: ${targetUrl}. Would you be available for a brief 10-minute walkthrough?`;
     } else {
       // purchase
       subject = isDigitalOrSoftware
@@ -72,9 +74,9 @@ export function generateLocalMessageFallback(
             : `Thank you for your partnership interest. We have prepared your dedicated onboarding agreement (${commissionRate} commission structure) and access details: ${purchaseAsset}.`);
       cta = isInformal
         ? (isDigitalOrSoftware
-            ? `Let me know if you'd like me to activate your free trial or subscription today, or if you prefer a quick onboarding call.`
-            : `Let me know if you'd like me to activate your referral tracking link today, or if you prefer a quick onboarding call.`)
-        : `Please let us know if we may proceed with the account activation or schedule a brief onboarding session.`;
+            ? `You can activate your free trial directly via this onboarding link: ${targetUrl} — let me know if you are ready to get started!`
+            : `You can activate your partnership and tracking link directly here: ${targetUrl} — let me know if you are ready to get started!`)
+        : `You may finalize your account setup and access the commercial agreement directly here: ${targetUrl}.`;
     }
 
     return {
@@ -93,13 +95,13 @@ export function generateLocalMessageFallback(
   let subject = '';
 
   if (stage === 'awareness') {
-    subject = `Risorsa gratuita & trend di settore per ${lead.shopName}`;
+    subject = `Risorsa gratuita e approfondimento ${productName} per ${lead.shopName}`;
     body = isInformal
-      ? `Abbiamo recentemente elaborato un contenuto pratico pensato per creator e store attivi su ${lead.platform}: "${awarenessAsset}". Nessuna proposta commerciale o vincolo, solo dati concreti e strategie per ottimizzare i ricavi a ${lead.city || 'livello locale'}.`
-      : `In relazione alle evoluzioni del mercato su ${lead.platform}, abbiamo redatto un approfondimento pratico dedicato: "${awarenessAsset}". Si tratta di una risorsa divulgativa focalizzata su trend e ottimizzazione per realtà come la vostra a ${lead.city || 'in Svizzera'}.`;
+      ? `Abbiamo recentemente elaborato un approfondimento pratico incentrato su ${productName} (${valueProp}), pensato per realtà attive su ${lead.platform}. Il materiale include "${awarenessAsset}"${primaryFeature ? ` ed esplora come valorizzare ${primaryFeature}` : ''}, senza alcuna proposta commerciale o vincolo d'acquisto.`
+      : `In relazione alle evoluzioni del settore su ${lead.platform}, abbiamo redatto un approfondimento pratico dedicato a ${productName} (${valueProp}): "${awarenessAsset}". Il documento analizza soluzioni concrete${primaryFeature ? ` (in particolare ${primaryFeature})` : ''} per attività come la vostra a ${lead.city || 'in Svizzera'}.`;
     cta = isInformal
-      ? `Ti andrebbe se ti inviassi il link per leggerla senza alcun impegno?`
-      : `Possiamo inviarvi il documento in anteprima gratuita da condividere con il vostro team?`;
+      ? `Puoi consultare la risorsa, l'analisi e tutti i dettagli su ${productName} direttamente a questo link: ${targetUrl} — facci sapere cosa ne pensi!`
+      : `Può consultare la guida e l'approfondimento gratuito direttamente a questo link: ${targetUrl}. Restiamo a completa disposizione per qualsiasi confronto.`;
   } else if (stage === 'evaluation') {
     subject = `Approfondimento e demo • ${lead.shopName} & ${productName}`;
     body = isInformal
@@ -110,8 +112,8 @@ export function generateLocalMessageFallback(
           ? `Facendo seguito al nostro scambio, confermiamo che la soluzione ${productName} (${productDesc}) prevede un abbonamento con condizioni di sconto lancio (${commissionRate}). Abbiamo preparato un dossier di valutazione completo: "${evaluationAsset}".`
           : `Facendo seguito al nostro scambio, confermiamo che la soluzione ${productName} (${productDesc}) prevede una remunerazione partner del ${commissionRate}. Abbiamo preparato un dossier di valutazione completo: "${evaluationAsset}".`);
     cta = isInformal
-      ? `Ti andrebbe di dare un'occhiata alla demo o fare un rapido confronto di 10 minuti?`
-      : `Sareste disponibili per un breve approfondimento di 10 minuti o preferite ricevere la documentazione tecnica?`;
+      ? `Trovi la presentazione completa del prodotto e la demo a questo link: ${targetUrl} — ti andrebbe un rapido confronto di 10 minuti?`
+      : `Può visionare la scheda completa della soluzione e la proposta a questo link: ${targetUrl}. Sarebbe disponibile per un breve approfondimento di 10 minuti?`;
   } else {
     // purchase
     subject = isDigitalOrSoftware
@@ -126,9 +128,9 @@ export function generateLocalMessageFallback(
           : `Siamo lieti di confermare i termini della collaborazione per ${lead.shopName} con remunerazione del ${commissionRate} e supporto dedicato. Abbiamo predisposto: "${purchaseAsset}".`);
     cta = isInformal
       ? (isDigitalOrSoftware
-          ? `Confermi che possiamo attivare la tua prova gratuita o l'abbonamento oggi stesso, o preferisci fare prima una call di 10 minuti?`
-          : `Confermi che possiamo attivare il tuo codice/link partner oggi stesso, o preferisci fare prima una call di 10 minuti?`)
-      : `Possiamo procedere con l'attivazione ufficiale dell'account o gradite concordare una sessione breve di onboarding?`;
+          ? `Puoi completare l'attivazione della prova gratuita direttamente qui: ${targetUrl} — confermi che possiamo procedere?`
+          : `Puoi attivare il tuo codice/link partner direttamente qui: ${targetUrl} — confermi che possiamo procedere?`)
+      : `Può accedere alla proposta commerciale e completare l'attivazione ufficiale tramite questo link: ${targetUrl}.`;
   }
 
   return {
