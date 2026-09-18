@@ -17,6 +17,29 @@ function getGemini(): GoogleGenAI | null {
   return geminiClient;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timeout (${ms}ms)`));
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.then(
+      (res) => {
+        clearTimeout(timeoutId);
+        return res;
+      },
+      (err) => {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    ),
+    timeoutPromise,
+  ]);
+}
+
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
@@ -242,13 +265,17 @@ IMPORTANTE: Usa i dati del prodotto (${productName}) e le sue caratteristiche un
   const gemini = getGemini();
   if (gemini) {
     try {
-      const geminiRes = await gemini.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: `${systemPrompt}\n\n${userPrompt}`,
-        config: {
-          responseMimeType: "application/json",
-        },
-      });
+      const geminiRes = await withTimeout(
+        gemini.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `${systemPrompt}\n\n${userPrompt}`,
+          config: {
+            responseMimeType: "application/json",
+          },
+        }),
+        8000,
+        "Gemini generateMessage"
+      );
       const content = geminiRes.text || "";
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -267,9 +294,12 @@ IMPORTANTE: Usa i dati del prodotto (${productName}) e le sue caratteristiche un
 
   // 2. Try OpenRouter if API key is provided
   if (apiKey) {
+    const controllerOpenRouter = new AbortController();
+    const timeoutOpenRouter = setTimeout(() => controllerOpenRouter.abort(), 6000);
     try {
       const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
+        signal: controllerOpenRouter.signal,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
@@ -285,6 +315,7 @@ IMPORTANTE: Usa i dati del prodotto (${productName}) e le sue caratteristiche un
           temperature: 0.7,
         }),
       });
+      clearTimeout(timeoutOpenRouter);
 
       if (openRouterRes.ok) {
         const data = (await openRouterRes.json()) as any;
@@ -304,6 +335,7 @@ IMPORTANTE: Usa i dati del prodotto (${productName}) e le sue caratteristiche un
         }
       }
     } catch (aiErr) {
+      clearTimeout(timeoutOpenRouter);
       console.warn("Chiamata OpenRouter fallita in generateMessageInternal, fallback:", aiErr);
     }
   }
@@ -595,10 +627,13 @@ app.get(["/api/config-status", "/config-status"], (req, res) => {
   // 0. Analyze Product URL via AI
   app.post(["/api/analyze-product", "/analyze-product"], async (req, res) => {
     try {
-      const { url } = req.body || {};
-      if (!url || typeof url !== "string") {
+      const { url: rawUrl } = req.body || {};
+      if (!rawUrl || typeof rawUrl !== "string") {
         return res.status(400).json({ error: "URL non valido o mancante" });
       }
+
+      const trimmedUrl = rawUrl.trim();
+      const url = /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
 
       let parsedUrl: URL;
       try {
@@ -626,7 +661,7 @@ app.get(["/api/config-status", "/config-status"], (req, res) => {
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
       let htmlText = "";
       let cleanedText = "";
@@ -700,13 +735,17 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
       const gemini = getGemini();
       if (gemini) {
         try {
-          const geminiRes = await gemini.models.generateContent({
-            model: "gemini-3.8-flash",
-            contents: analysisPrompt,
-            config: {
-              responseMimeType: "application/json",
-            },
-          });
+          const geminiRes = await withTimeout(
+            gemini.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: analysisPrompt,
+              config: {
+                responseMimeType: "application/json",
+              },
+            }),
+            8000,
+            "Gemini analyzeProduct"
+          );
           const text = geminiRes.text || "";
           const jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
@@ -747,7 +786,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
         try {
 
           const controllerAI = new AbortController();
-          const aiTimeout = setTimeout(() => controllerAI.abort(), 8000);
+          const aiTimeout = setTimeout(() => controllerAI.abort(), 4000);
 
           const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",

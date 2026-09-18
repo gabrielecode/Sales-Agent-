@@ -148,7 +148,8 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                     setIsAnalyzing(true);
                     setAnalysisError(null);
 
-                    const effectiveUrl = formData.productUrl.trim();
+                    const rawUrl = formData.productUrl.trim();
+                    const effectiveUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
                     const apiKey = formData.openRouterApiKey || config.openRouterApiKey;
                     const model = formData.openRouterModel || config.openRouterModel || 'openai/gpt-4o-mini';
 
@@ -156,8 +157,11 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                     let usedFallback = false;
 
                     try {
+                      const controller = new AbortController();
+                      const timeoutId = setTimeout(() => controller.abort(), 25000);
                       const res = await fetch('/api/analyze-product', {
                         method: 'POST',
+                        signal: controller.signal,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           url: effectiveUrl,
@@ -165,6 +169,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                           openRouterModel: model,
                         }),
                       });
+                      clearTimeout(timeoutId);
                       const contentType = res.headers.get("content-type");
                       let data: any = {};
                       if (contentType && contentType.includes("application/json")) {
@@ -182,15 +187,18 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                         analysis = data.analysis;
                       }
                     } catch (serverErr) {
-                      console.warn("Chiamata API /api/analyze-product fallita, tentativo fallback:", serverErr);
+                      console.warn("Chiamata API /api/analyze-product fallita o timeout, tentativo fallback:", serverErr);
                     }
 
                     // Client-side fallback if server fails or returns error
                     if (!analysis && apiKey) {
                       try {
                         const prompt = `Analizza questo URL/prodotto: ${effectiveUrl}. Estrai in formato JSON: productName, valueProposition (1-2 frasi), keyFeatures (array di 3 stringhe), targetAudience, offerType (software | digital_product | affiliate | collab | sponsorship), tone. Rispondi solo in JSON.`;
+                        const aiController = new AbortController();
+                        const aiTimeoutId = setTimeout(() => aiController.abort(), 8000);
                         const directRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                           method: 'POST',
+                          signal: aiController.signal,
                           headers: {
                             'Authorization': `Bearer ${apiKey}`,
                             'Content-Type': 'application/json',
@@ -203,6 +211,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                             temperature: 0.2,
                           }),
                         });
+                        clearTimeout(aiTimeoutId);
                         if (directRes.ok) {
                           const directData = await directRes.json();
                           const content = directData.choices?.[0]?.message?.content || '';
