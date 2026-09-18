@@ -21,7 +21,21 @@ interface LeadTableProps {
   onOpenOutreachForLead: (id: string) => void;
   onDeleteLead?: (id: string) => void;
   onOpenCSVModal?: () => void;
+  onUpdateLeadCategory?: (id: string, category: string) => void;
 }
+
+const MERCHANDISE_CATEGORIES = [
+  'Alimentare & Enogastronomia',
+  'Moda & Accessori',
+  'Casa & Arredamento',
+  'Bellezza & Cosmetica',
+  'Artigianato & Fatto a Mano',
+  'Gioielli & Bijoux',
+  'Editoria & Libri',
+  'Sport & Tempo Libero',
+  'Casa, Decorazioni & Arte',
+  'Infanzia & Giocattoli',
+];
 
 export const LeadTable: React.FC<LeadTableProps> = ({
   leads,
@@ -30,6 +44,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
   onOpenOutreachForLead,
   onDeleteLead,
   onOpenCSVModal,
+  onUpdateLeadCategory,
 }) => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const allSelected = leads.length > 0 && leads.every((l) => l.selected);
@@ -140,6 +155,9 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {lead.industry || 'Alimentare & Enogastronomia'}
+                        </span>
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">
                           {lead.platform}
                         </span>
@@ -269,6 +287,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                 />
               </th>
               <th className="py-3 px-4 min-w-[200px]">Negozio / Creator</th>
+              <th className="py-3 px-4 min-w-[170px]">Categoria Merceologica</th>
               <th className="py-3 px-4 min-w-[140px]">Piattaforma & Origine</th>
               <th className="py-3 px-4 min-w-[120px]">Località</th>
               <th className="py-3 px-4 min-w-[160px]">Segnali di Business</th>
@@ -339,6 +358,30 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                       )}
                       <span className="text-[11px] text-slate-500 truncate max-w-[200px]">{lead.shortNotes}</span>
                     </div>
+                  </td>
+
+                  <td className="py-3 px-4">
+                    {onUpdateLeadCategory ? (
+                      <select
+                        value={lead.industry || 'Alimentare & Enogastronomia'}
+                        onChange={(e) => onUpdateLeadCategory(lead.id, e.target.value)}
+                        className="text-xs bg-indigo-50/70 hover:bg-indigo-50 text-indigo-900 border border-indigo-200 font-medium rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[160px] truncate"
+                        title="Modifica categoria merceologica per personalizzare l'email"
+                      >
+                        {MERCHANDISE_CATEGORIES.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                        {!MERCHANDISE_CATEGORIES.includes(lead.industry || '') && lead.industry && (
+                          <option value={lead.industry}>{lead.industry}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {lead.industry || 'Alimentare & Enogastronomia'}
+                      </span>
+                    )}
                   </td>
 
                   <td className="py-3 px-4">

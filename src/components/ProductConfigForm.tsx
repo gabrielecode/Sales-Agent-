@@ -494,6 +494,50 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               />
             </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-700">
+                  Categoria Merceologica / Settore Predefinito
+                </label>
+                <span className="text-[10px] text-indigo-600 font-medium">Personalizza l'Hook dell'Email</span>
+              </div>
+              <input
+                type="text"
+                placeholder="es. Alimentare & Enogastronomia, Moda & Accessori, Casa & Arredamento, Artigianato..."
+                value={formData.targetMerchandiseCategory || ''}
+                onChange={(e) => setFormData({ ...formData, targetMerchandiseCategory: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[
+                  'Alimentare & Enogastronomia',
+                  'Moda & Accessori',
+                  'Casa & Arredamento',
+                  'Bellezza & Cosmetica',
+                  'Artigianato & Fatto a Mano',
+                  'Gioielli & Bijoux',
+                  'Editoria & Libri',
+                  'Sport & Tempo Libero',
+                ].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, targetMerchandiseCategory: cat })}
+                    className={`text-[10px] px-2 py-0.5 rounded-md border transition cursor-pointer ${
+                      formData.targetMerchandiseCategory === cat
+                        ? 'bg-indigo-600 text-white border-indigo-600 font-semibold'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Utilizzata per personalizzare l'Hook di apertura email per i contatti privi di categoria esplicita, eliminando formule generiche o fisse.
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 gap-3 pt-1">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Limite Giornaliero Invii</label>

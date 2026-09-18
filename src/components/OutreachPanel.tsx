@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, ProductConfig, FunnelStage } from '../types';
 import { generateOutreachMessageWithAI } from '../lib/openrouter';
+import { generateLocalMessageFallback } from '../lib/messageFallback';
 import { sendOutreachEmail } from '../lib/resendClient';
 import { executeAutopilotRun, AutopilotRunResult } from '../lib/autopilot';
 import { getFunnelStage, FUNNEL_STAGE_LABELS, FUNNEL_STAGE_COLORS, getFunnelStageDescription } from '../lib/funnelStage';
@@ -31,7 +32,21 @@ interface OutreachPanelProps {
   onUpdateLeadMessage: (leadId: string, subject: string, body: string) => void;
   onSendMessages: (leadIds: string[]) => void;
   onLeadsUpdated?: (updatedLeads: Lead[]) => void;
+  onUpdateLeadCategory?: (leadId: string, category: string) => void;
 }
+
+const OUTREACH_CATEGORIES = [
+  'Alimentare & Enogastronomia',
+  'Moda & Accessori',
+  'Casa & Arredamento',
+  'Bellezza & Cosmetica',
+  'Artigianato & Fatto a Mano',
+  'Gioielli & Bijoux',
+  'Editoria & Libri',
+  'Sport & Tempo Libero',
+  'Casa, Decorazioni & Arte',
+  'Infanzia & Giocattoli',
+];
 
 interface SendReport {
   totalAttempted: number;
@@ -47,6 +62,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
   onUpdateLeadMessage,
   onSendMessages,
   onLeadsUpdated,
+  onUpdateLeadCategory,
 }) => {
   const selectedLeads = leads.filter((l) => l.selected);
   const [activeLeadIndex, setActiveLeadIndex] = useState<number>(0);
@@ -631,8 +647,38 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
                   )}
                 </div>
                 <p className="text-xs text-slate-500 mt-1 truncate">
-                  {currentLead.email ? `Destinatario: ${currentLead.email}` : 'Nessuna email salvata'} • Settore: {currentLead.industry || 'Non specificato'}
+                  {currentLead.email ? `Destinatario: ${currentLead.email}` : 'Nessuna email salvata'}
                 </p>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <span className="text-[11px] font-medium text-slate-500">Settore / Categoria:</span>
+                  {onUpdateLeadCategory ? (
+                    <select
+                      value={currentLead.industry || 'Alimentare & Enogastronomia'}
+                      onChange={(e) => {
+                        const newCat = e.target.value;
+                        onUpdateLeadCategory(currentLead.id, newCat);
+                        // Also regenerate the email instantly with the new category
+                        const updated = generateLocalMessageFallback({ ...currentLead, industry: newCat }, config);
+                        onUpdateLeadMessage(currentLead.id, updated.subject, updated.body);
+                      }}
+                      className="text-xs bg-indigo-50 hover:bg-indigo-100/80 text-indigo-950 border border-indigo-200 font-semibold rounded-lg px-2 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      title="Seleziona la categoria merceologica per personalizzare l'apertura dell'email"
+                    >
+                      {OUTREACH_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                      {!OUTREACH_CATEGORIES.includes(currentLead.industry || '') && currentLead.industry && (
+                        <option value={currentLead.industry}>{currentLead.industry}</option>
+                      )}
+                    </select>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {currentLead.industry || 'Alimentare & Enogastronomia'}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
@@ -656,6 +702,27 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
                 </button>
               </div>
             </div>
+
+            {currentLead.message?.body && currentLead.message.body.includes('settore E-Commerce su Web') && (
+              <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>Formula generica rilevata:</strong> Questo testo conteneva il vecchio riferimento fisso <em>"settore E-Commerce su Web"</em>.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = generateLocalMessageFallback(currentLead, config);
+                    onUpdateLeadMessage(currentLead.id, updated.subject, updated.body);
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition cursor-pointer shrink-0 shadow-2xs"
+                >
+                  Aggiorna con Categoria Reale
+                </button>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">Oggetto Email</label>

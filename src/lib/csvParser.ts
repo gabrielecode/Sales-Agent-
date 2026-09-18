@@ -75,6 +75,77 @@ export function determineToneOfVoice(industry?: string): 'Formale' | 'Informale'
   return 'Formale';
 }
 
+/**
+ * Intelligently detects and cleans the merchandise category (categoria merceologica).
+ * Prevents generic fallback "E-Commerce" which causes repetitive, robotic outreach.
+ */
+export function detectMerchandiseCategory(
+  shopName: string = '',
+  notes: string = '',
+  rawIndustry: string = '',
+  url: string = '',
+  configDefault?: string
+): string {
+  const cleanRaw = (rawIndustry || '').trim();
+  const rawLower = cleanRaw.toLowerCase();
+
+  // If already a valid specific category, normalize and return it
+  if (
+    cleanRaw &&
+    !['e-commerce', 'ecommerce', 'web', 'online', 'non specificato', 'generico', 'altro'].includes(rawLower)
+  ) {
+    return cleanRaw;
+  }
+
+  // Scan context (shop name, notes, url) for merchandise domain keywords
+  const context = `${shopName} ${notes} ${url} ${cleanRaw}`.toLowerCase();
+
+  if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar|panettone|formagg)/i.test(context)) {
+    return 'Alimentare & Enogastronomia';
+  }
+  if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazioni\s*casa)/i.test(context)) {
+    return 'Casa, Decorazioni & Arte';
+  }
+  if (/(book|libri|editor|author|autore|guide|romanzo|kdp|racconti|fumetti|publishing)/i.test(context)) {
+    return 'Editoria, Guide & Libri';
+  }
+  if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|outfit|calzature|pelletteria)/i.test(context)) {
+    return 'Moda & Accessori';
+  }
+  if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi|gemme)/i.test(context)) {
+    return 'Gioielli & Bijoux';
+  }
+  if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica|cuscini)/i.test(context)) {
+    return 'Casa & Arredamento';
+  }
+  if (/(beauty|bellezza|cosmet|skincare|creme|saponi|make-?up|profum|benessere|cura\s*corpo)/i.test(context)) {
+    return 'Bellezza & Cosmetica';
+  }
+  if (/(artigian|handmade|fatto\s*a\s*mano|cuoio|legno|ceramica|scultura|laboratorio)/i.test(context)) {
+    return 'Artigianato & Fatto a Mano';
+  }
+  if (/(sport|fitness|outdoor|bici|bike|trekking|palestra|montagna|escursion)/i.test(context)) {
+    return 'Sport & Tempo Libero';
+  }
+  if (/(kids|bambin|infanzia|giochi|giocattoli|puericultura|neonati)/i.test(context)) {
+    return 'Infanzia & Giocattoli';
+  }
+  if (/(pet|cani|gatti|animali|mangimi|accessori\s*animali)/i.test(context)) {
+    return 'Animali & Pet Care';
+  }
+  if (/(elettron|gadget|tech|software|hardware|audio|informatica|digitale|app)/i.test(context)) {
+    return 'Tecnologia & Gadget';
+  }
+
+  // Fallback to configured target merchandise category if present
+  if (configDefault && configDefault.trim()) {
+    return configDefault.trim();
+  }
+
+  // Generic natural fallback (avoiding "E-Commerce" or "su Web")
+  return 'Artigianato & Vendita Prodotti';
+}
+
 export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
   // Strip UTF-8 BOM if present
   const cleanText = csvText.replace(/^\uFEFF/, '').trim();
@@ -130,9 +201,40 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
 
     const city = getVal('city', 'citta', 'città', 'comune', 'luogo', 'location') || 'Svizzera';
     const canton = getVal('canton', 'cantone', 'provincia', 'regione', 'paese', 'country') || 'CH';
-    const industry = getVal('industry', 'settore', 'categoria', 'category', 'nicchia') || 'E-Commerce';
     const notes = getVal('notes', 'note', 'descrizione', 'description', 'bio', 'dettagli') || 'Importato da CSV';
     const url = getVal('url', 'website', 'sito', 'link', 'shopurl', 'profilo') || '';
+
+    // Check all possible aliases for merchandise category / industry
+    const rawIndustry = getVal(
+      'categoria_merceologica',
+      'categoria merceologica',
+      'settore_merceologico',
+      'settore merceologico',
+      'merceologia',
+      'categoria',
+      'category',
+      'settore',
+      'industry',
+      'nicchia',
+      'niche',
+      'ramo',
+      'verticale',
+      'prodotti',
+      'products',
+      'tipo_merce',
+      'tipologia',
+      'mercato',
+      'attività',
+      'attivita'
+    );
+
+    const industry = detectMerchandiseCategory(
+      shopName,
+      notes,
+      rawIndustry,
+      url,
+      config?.targetMerchandiseCategory
+    );
 
     const langRaw = getVal('language', 'lingua', 'lang').toLowerCase();
     let language: Language = 'it';
@@ -207,9 +309,9 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
  * Returns a ready-to-download sample CSV template string
  */
 export function getSampleCSVTemplate(): string {
-  return `Nome Negozio,Email,Piattaforma,Città,Cantone,Sito Web,Settore,Note
+  return `Nome Negozio,Email,Piattaforma,Città,Cantone,Sito Web,Categoria Merceologica,Note
 Swiss Alps Honey,info@swissalpshoney.ch,Shopify,Lugano,TI,https://swissalpshoney.ch,Alimentare & Bio,Prodotti naturali artigianali
-Zurich Wall Art,contact@zurichwallart.com,Etsy,Zurigo,ZH,https://etsy.com/shop/zurichwallart,Decorazioni Casa,Stampe grafiche d'autore
+Zurich Wall Art,contact@zurichwallart.com,Etsy,Zurigo,ZH,https://etsy.com/shop/zurichwallart,Casa & Decorazioni,Stampe grafiche d'autore
 Helvetia Indie Books,author@helvetiabooks.ch,Amazon KDP,Berna,BE,https://amazon.com/dp/example,Editoria & Guide,Libri fotografici e guide escursionistiche
 Milano Fashion Crafts,hello@milanocrafts.it,Instagram,Milano,IT,https://instagram.com/milanocrafts,Moda & Accessori,Community attiva oltre 25k followers`;
 }

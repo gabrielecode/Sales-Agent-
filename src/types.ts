@@ -11,6 +11,7 @@ export interface ProductConfig {
   productName: string;
   productDescription: string;
   targetAudience: string;
+  targetMerchandiseCategory?: string;
   offerType: OfferType;
   commissionRate: string;
   targetCategory: TargetCategory;

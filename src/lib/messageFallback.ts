@@ -1,12 +1,90 @@
 import { Lead, ProductConfig, FunnelStage, OfferType } from '../types';
 import { getFunnelStage } from './funnelStage';
 
+function getCleanMerchandiseCategory(
+  industry?: string,
+  shortNotes?: string,
+  shopName?: string,
+  config?: any
+): string {
+  const ind = (industry || '').trim();
+  const indLower = ind.toLowerCase();
+  if (
+    ind &&
+    !['e-commerce', 'ecommerce', 'web', 'online', 'non specificato', 'generico', 'digitale', 'aziendale'].includes(indLower)
+  ) {
+    return ind;
+  }
+
+  const context = `${shopName || ''} ${shortNotes || ''} ${config?.targetMerchandiseCategory || ''} ${config?.targetAudience || ''}`.toLowerCase();
+  if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar)/i.test(context)) {
+    return 'Alimentare & Enogastronomia';
+  }
+  if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazion)/i.test(context)) {
+    return 'Casa, Decorazioni & Arte';
+  }
+  if (/(book|libri|editor|author|autore|guide|romanzo|kdp|racconti|fumetti)/i.test(context)) {
+    return 'Editoria & Guide';
+  }
+  if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|pelletteria)/i.test(context)) {
+    return 'Moda & Accessori';
+  }
+  if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi)/i.test(context)) {
+    return 'Gioielli & Bijoux';
+  }
+  if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica)/i.test(context)) {
+    return 'Casa & Arredamento';
+  }
+  if (/(beauty|bellezza|cosmet|skincare|creme|saponi|make-?up|profum|benessere)/i.test(context)) {
+    return 'Bellezza & Cosmetica';
+  }
+  if (/(artigian|handmade|fatto\s*a\s*mano|cuoio|legno|laboratorio)/i.test(context)) {
+    return 'Artigianato & Fatto a Mano';
+  }
+  if (/(sport|fitness|outdoor|bici|trekking|montagna)/i.test(context)) {
+    return 'Sport & Tempo Libero';
+  }
+  if (/(kids|bambin|infanzia|giochi|giocattoli)/i.test(context)) {
+    return 'Infanzia & Giocattoli';
+  }
+  if (/(pet|cani|gatti|animali)/i.test(context)) {
+    return 'Animali & Pet Care';
+  }
+
+  if (config?.targetMerchandiseCategory && config.targetMerchandiseCategory.trim()) {
+    return config.targetMerchandiseCategory.trim();
+  }
+
+  return 'Prodotti Artigianali & Retail';
+}
+
+function getPlatformPhrasing(platform: string, isInformal: boolean): string {
+  const p = (platform || '').toLowerCase();
+  if (p.includes('etsy')) return isInformal ? 'su Etsy' : 'sul vostro shop Etsy';
+  if (p.includes('shopify')) return isInformal ? 'su Shopify' : 'sul vostro store Shopify';
+  if (p.includes('amazon') || p.includes('kdp')) return isInformal ? 'su Amazon KDP' : 'con le vostre pubblicazioni su Amazon KDP';
+  if (p.includes('instagram') || p.includes('ig')) return isInformal ? 'su Instagram' : 'sulla vostra pagina Instagram';
+  if (p.includes('linkedin')) return isInformal ? 'su LinkedIn' : 'sul vostro profilo LinkedIn';
+  return isInformal ? 'sul vostro store online' : 'con il vostro store online';
+}
+
+function getEnglishPlatformPhrasing(platform: string): string {
+  const p = (platform || '').toLowerCase();
+  if (p.includes('etsy')) return 'on Etsy';
+  if (p.includes('shopify')) return 'on your Shopify store';
+  if (p.includes('amazon') || p.includes('kdp')) return 'on Amazon KDP';
+  if (p.includes('instagram') || p.includes('ig')) return 'on Instagram';
+  if (p.includes('linkedin')) return 'on LinkedIn';
+  return 'online';
+}
+
 export function generateLocalMessageFallback(
-  lead: Partial<Lead> & { shopName: string; platform: string; language: string },
+  lead: Partial<Lead> & { shopName: string; platform: string; language: string; industry?: string; shortNotes?: string },
   config: Partial<ProductConfig> & {
     productName: string;
     commissionRate?: string;
     productDescription?: string;
+    targetMerchandiseCategory?: string;
     funnelAssets?: { awareness: string[]; evaluation: string[]; purchase: string[] };
     offerType?: OfferType;
   },
@@ -27,14 +105,18 @@ export function generateLocalMessageFallback(
   const isDigitalOrSoftware = offerType === 'digital_product' || offerType === 'software';
   const targetUrl = (config as any).productUrl || (config as any).productAnalysis?.sourceUrl || 'https://swissaffiliatebooster.ch';
 
+  const category = getCleanMerchandiseCategory(lead.industry, lead.shortNotes, lead.shopName, config);
+  const platformPhrase = getPlatformPhrasing(lead.platform, isInformal);
+
   const awarenessAsset = config.funnelAssets?.awareness?.[0] || `la guida e analisi approfondita su ${productName}`;
   const evaluationAsset = config.funnelAssets?.evaluation?.[0] || `la demo interattiva e le specifiche di ${productName}`;
   const purchaseAsset = config.funnelAssets?.purchase?.[0] || `il link di attivazione immediata di ${productName}`;
 
   if (lead.language === 'en') {
+    const enPlatform = getEnglishPlatformPhrasing(lead.platform);
     const hook = isInformal
-      ? `Hi team at ${lead.shopName}, I've been closely analyzing your presence on ${lead.platform} within the ${lead.industry || 'digital'} space—your curation is top tier.`
-      : `Dear ${lead.shopName} team, I have been following your established achievements in the ${lead.industry || 'commerce'} sector on ${lead.platform}.`;
+      ? `Hi team at ${lead.shopName}, I've been closely analyzing your presence in the ${category} space ${enPlatform}—your curation is top tier.`
+      : `Dear ${lead.shopName} team, I have been following your established achievements in the ${category} sector ${enPlatform}.`;
 
     let body = '';
     let cta = '';
@@ -43,8 +125,8 @@ export function generateLocalMessageFallback(
     if (stage === 'awareness') {
       subject = `Free insights & ${productName} resource for ${lead.shopName}`;
       body = isInformal
-        ? `We recently put together an actionable resource centered on ${productName} (${valueProp}) for businesses on ${lead.platform}. The material covers "${awarenessAsset}"${primaryFeature ? ` with a focus on ${primaryFeature}` : ''}. No sales pitch—just practical takeaways.`
-        : `We prepared a curated research report regarding ${productName} (${valueProp}) for top operators on ${lead.platform}: "${awarenessAsset}". We examine concrete efficiency gains${primaryFeature ? ` including ${primaryFeature}` : ''} for your market in ${lead.city || 'Europe'}.`;
+        ? `We recently put together an actionable resource centered on ${productName} (${valueProp}) for brands in ${category} ${enPlatform}. The material covers "${awarenessAsset}"${primaryFeature ? ` with a focus on ${primaryFeature}` : ''}. No sales pitch—just practical takeaways.`
+        : `We prepared a curated research report regarding ${productName} (${valueProp}) for established brands in ${category} ${enPlatform}: "${awarenessAsset}". We examine concrete efficiency gains${primaryFeature ? ` including ${primaryFeature}` : ''} for your market in ${lead.city || 'Europe'}.`;
       cta = isInformal
         ? `You can access the complimentary guide and overview directly here: ${targetUrl}. Let me know what you think!`
         : `You may review the complimentary guide and research report directly here: ${targetUrl}. We remain at your disposal for any further questions.`;
@@ -87,8 +169,8 @@ export function generateLocalMessageFallback(
 
   // Italian default (HOOK + BODY + CTA)
   const hook = isInformal
-    ? `Ciao team di ${lead.shopName}, ho notato con molto interesse il vostro lavoro nel settore ${lead.industry || 'digitale'} su ${lead.platform} e la cura con cui gestite il vostro catalogo.`
-    : `Gentile team di ${lead.shopName}, seguo con vivo interesse i vostri risultati nel settore ${lead.industry || 'aziendale'} su ${lead.platform}.`;
+    ? `Ciao team di ${lead.shopName}, ho notato con molto interesse il vostro lavoro nel settore ${category} ${platformPhrase} e la cura con cui curate l'offerta.`
+    : `Gentile team di ${lead.shopName}, seguo con vivo interesse l'eccellenza della vostra attività nel settore ${category} ${platformPhrase}.`;
 
   let body = '';
   let cta = '';
@@ -97,8 +179,8 @@ export function generateLocalMessageFallback(
   if (stage === 'awareness') {
     subject = `Risorsa gratuita e approfondimento ${productName} per ${lead.shopName}`;
     body = isInformal
-      ? `Abbiamo recentemente elaborato un approfondimento pratico incentrato su ${productName} (${valueProp}), pensato per realtà attive su ${lead.platform}. Il materiale include "${awarenessAsset}"${primaryFeature ? ` ed esplora come valorizzare ${primaryFeature}` : ''}, senza alcuna proposta commerciale o vincolo d'acquisto.`
-      : `In relazione alle evoluzioni del settore su ${lead.platform}, abbiamo redatto un approfondimento pratico dedicato a ${productName} (${valueProp}): "${awarenessAsset}". Il documento analizza soluzioni concrete${primaryFeature ? ` (in particolare ${primaryFeature})` : ''} per attività come la vostra a ${lead.city || 'in Svizzera'}.`;
+      ? `Abbiamo recentemente elaborato un approfondimento pratico incentrato su ${productName} (${valueProp}), pensato per realtà specializzate nel settore ${category} ${platformPhrase}. Il materiale include "${awarenessAsset}"${primaryFeature ? ` ed esplora come valorizzare ${primaryFeature}` : ''}, senza alcuna proposta commerciale o vincolo d'acquisto.`
+      : `In relazione alle evoluzioni e alle opportunità nel settore ${category} ${platformPhrase}, abbiamo redatto un approfondimento pratico dedicato a ${productName} (${valueProp}): "${awarenessAsset}". Il documento analizza soluzioni concrete${primaryFeature ? ` (in particolare ${primaryFeature})` : ''} per attività come la vostra a ${lead.city || 'in Svizzera'}.`;
     cta = isInformal
       ? `Puoi consultare la risorsa, l'analisi e tutti i dettagli su ${productName} direttamente a questo link: ${targetUrl} — facci sapere cosa ne pensi!`
       : `Può consultare la guida e l'approfondimento gratuito direttamente a questo link: ${targetUrl}. Restiamo a completa disposizione per qualsiasi confronto.`;

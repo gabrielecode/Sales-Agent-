@@ -14,6 +14,8 @@ import {
 interface LeadFiltersProps {
   platformFilter: string;
   setPlatformFilter: (val: string) => void;
+  categoryFilter?: string;
+  setCategoryFilter?: (val: string) => void;
   languageFilter: string;
   setLanguageFilter: (val: string) => void;
   minScoreFilter: number;
@@ -33,6 +35,8 @@ interface LeadFiltersProps {
 export const LeadFilters: React.FC<LeadFiltersProps> = ({
   platformFilter,
   setPlatformFilter,
+  categoryFilter = 'all',
+  setCategoryFilter,
   languageFilter,
   setLanguageFilter,
   minScoreFilter,
@@ -50,15 +54,18 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
   const [showFiltersMobile, setShowFiltersMobile] = useState<boolean>(false);
 
   const uniquePlatforms = Array.from(new Set(leads.map((l) => l.platform)));
+  const uniqueCategories = Array.from(new Set(leads.map((l) => l.industry).filter(Boolean))) as string[];
 
   const activeFiltersCount =
     (platformFilter !== 'all' ? 1 : 0) +
+    (categoryFilter !== 'all' ? 1 : 0) +
     (languageFilter !== 'all' ? 1 : 0) +
     (minScoreFilter > 0 ? 1 : 0) +
     (searchQuery.trim() ? 1 : 0);
 
   const handleResetFilters = () => {
     setPlatformFilter('all');
+    if (setCategoryFilter) setCategoryFilter('all');
     setLanguageFilter('all');
     setMinScoreFilter(0);
     setSearchQuery('');
@@ -185,7 +192,7 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
       <div
         className={`${
           showFiltersMobile ? 'grid' : 'hidden sm:grid'
-        } grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 text-xs`}
+        } grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 text-xs`}
       >
         <div>
           <label className="block text-[11px] font-medium text-slate-600 mb-1">Piattaforma</label>
@@ -196,11 +203,30 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
             className="w-full h-9 pl-3 pr-8 py-1.5 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 hover:bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%208l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat shadow-2xs"
           >
             <option value="all">
-              {uniquePlatforms.length === 0 ? 'Nessuna piattaforma nei dati' : 'Tutte le Piattaforme'}
+              {uniquePlatforms.length === 0 ? 'Nessuna piattaforma' : 'Tutte le Piattaforme'}
             </option>
             {uniquePlatforms.map((p) => (
               <option key={p} value={p}>
                 {p}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 mb-1">Categoria Merceologica</label>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter && setCategoryFilter(e.target.value)}
+            disabled={uniqueCategories.length === 0}
+            className="w-full h-9 pl-3 pr-8 py-1.5 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 hover:bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%208l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat shadow-2xs"
+          >
+            <option value="all">
+              {uniqueCategories.length === 0 ? 'Nessuna categoria' : 'Tutte le Categorie'}
+            </option>
+            {uniqueCategories.map((c) => (
+              <option key={c} value={c}>
+                {c}
               </option>
             ))}
           </select>

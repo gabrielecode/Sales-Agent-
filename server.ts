@@ -193,6 +193,45 @@ async function generateMessageInternal(
   const valueProp = config?.productAnalysis?.valueProposition || config?.productDescription || "";
   const keyFeatures = config?.productAnalysis?.keyFeatures || [];
 
+  // Intelligently resolve the specific merchandise category
+  const rawInd = (lead.industry || "").trim();
+  const rawLower = rawInd.toLowerCase();
+  let categoryClean = rawInd;
+  if (!rawInd || ["e-commerce", "ecommerce", "web", "online", "non specificato", "generico", "digitale", "aziendale"].includes(rawLower)) {
+    const ctx = `${lead.shopName || ""} ${lead.shortNotes || ""} ${config?.targetMerchandiseCategory || ""} ${config?.targetAudience || ""}`.toLowerCase();
+    if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar)/i.test(ctx)) {
+      categoryClean = "Alimentare & Enogastronomia";
+    } else if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazion)/i.test(ctx)) {
+      categoryClean = "Casa, Decorazioni & Arte";
+    } else if (/(book|libri|editor|author|autore|guide|romanzo|kdp|racconti|fumetti)/i.test(ctx)) {
+      categoryClean = "Editoria & Guide";
+    } else if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|pelletteria)/i.test(ctx)) {
+      categoryClean = "Moda & Accessori";
+    } else if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi)/i.test(ctx)) {
+      categoryClean = "Gioielli & Bijoux";
+    } else if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica)/i.test(ctx)) {
+      categoryClean = "Casa & Arredamento";
+    } else if (/(beauty|bellezza|cosmet|skincare|creme|saponi|make-?up|profum|benessere)/i.test(ctx)) {
+      categoryClean = "Bellezza & Cosmetica";
+    } else if (/(artigian|handmade|fatto\s*a\s*mano|cuoio|legno)/i.test(ctx)) {
+      categoryClean = "Artigianato & Fatto a Mano";
+    } else if (/(sport|fitness|outdoor|bici|trekking|montagna)/i.test(ctx)) {
+      categoryClean = "Sport & Tempo Libero";
+    } else if (config?.targetMerchandiseCategory) {
+      categoryClean = config.targetMerchandiseCategory;
+    } else {
+      categoryClean = "Prodotti di Qualità & Retail";
+    }
+  }
+
+  const pLower = (lead.platform || "").toLowerCase();
+  let platformLabel = "store online";
+  if (pLower.includes("etsy")) platformLabel = "shop Etsy";
+  else if (pLower.includes("shopify")) platformLabel = "store Shopify";
+  else if (pLower.includes("amazon") || pLower.includes("kdp")) platformLabel = "pubblicazioni Amazon KDP";
+  else if (pLower.includes("instagram") || pLower.includes("ig")) platformLabel = "pagina Instagram";
+  else if (pLower.includes("linkedin")) platformLabel = "profilo LinkedIn";
+
   let stageGuideline = "";
   if (stage === "awareness") {
     stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione).
@@ -223,7 +262,9 @@ REGOLE TASSATIVE DI GENERAZIONE:
 3. TONO DI VOCE: Scrivi l'email usando il tono di voce indicato (${tone}):
    - Se 'Informale': usa un tono diretto e cordiale tra pari del settore (Tu / Ciao).
    - Se 'Formale': usa un registro professionale e rispettoso (Lei / Buongiorno / Gentile).
-4. HOOK (GANCIO): Inizia SEMPRE con un Hook iper-personalizzato basato sul settore del destinatario (${lead.industry || lead.platform}) e collegalo al problema che ${productName} risolve.
+4. HOOK (GANCIO) & CATEGORIA MERCEOLOGICA:
+   - Inizia SEMPRE con un Hook iper-personalizzato citando esplicitamente la reale categoria merceologica del destinatario: "${categoryClean}" e il suo canale "${platformLabel}".
+   - DIVIETO ASSOLUTO: È SEVERAMENTE VIETATO usare la frase generica "seguo con vivo interesse i vostri risultati nel settore E-Commerce su Web" o la formula "su Web". E-Commerce non è una categoria merceologica; menziona sempre la reale merceologia ("${categoryClean}") e contestualizza in modo naturale (es. "sul vostro ${platformLabel}").
 5. BODY (CORPO): Continua con il Corpo incentrato sui dati reali e specifici del prodotto (Proposta di Valore e Caratteristiche Chiave estratte dall'analisi), allineato allo stadio del funnel:
 ${stageGuideline}
 6. ANTI-SPAM & DELIVERABILITY: Evita parole da spam come 'Compra ora', 'Offertissima', punti esclamativi multipli o formule aggressive di vendita.
@@ -246,7 +287,8 @@ Rispondi ESCLUSIVAMENTE in formato JSON puro:
   const userPrompt = `Genera un'email di outreach altamente personalizzata per il seguente lead:
 - Destinatario: ${lead.shopName}
 - Piattaforma: ${lead.platform}
-- Settore / Nicchia: ${lead.industry || "Non specificato"}
+- Categoria Merceologica / Settore: ${categoryClean}
+- Canale: ${platformLabel}
 - Tono di voce: ${tone}
 - Lingua: ${lead.language || "it"}
 - Località: ${lead.city || "Svizzera"} (${lead.canton || "CH"})
@@ -259,7 +301,10 @@ DATI DEL PRODOTTO DA PROMUOVERE:
 - Descrizione / Proposta di Valore: ${valueProp || config?.productDescription || ""}
 - Target: ${config?.targetAudience || (isDigitalOrSoftware ? "Clienti / Utenti finali" : "B2B Partners")}${analysisText}
 
-IMPORTANTE: Usa i dati del prodotto (${productName}) e le sue caratteristiche uniche per creare un messaggio originale e differente. Inserisci il link ${targetUrl} nella CTA!`;
+IMPORTANTE:
+1. Usa la categoria merceologica "${categoryClean}" per personalizzare l'Hook di apertura.
+2. NON usare mai la formula stereotipata "settore E-Commerce su Web".
+3. Inserisci il link ${targetUrl} nella CTA!`;
 
   // 1. Try Gemini API first (natively available in AI Studio)
   const gemini = getGemini();

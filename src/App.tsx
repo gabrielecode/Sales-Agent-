@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ProductConfig, Lead, AppTab } from './types';
 import { DEFAULT_CONFIG, parseCSVLeads, simulateSimulatedResponses } from './utils/mockData';
 import { validateEmailQuality, determineToneOfVoice } from './lib/csvParser';
+import { generateLocalMessageFallback } from './lib/messageFallback';
 import { ProductConfigForm } from './components/ProductConfigForm';
 import { LeadFilters } from './components/LeadFilters';
 import { LeadTable } from './components/LeadTable';
@@ -68,6 +69,7 @@ export default function App() {
 
   // Filters
   const [platformFilter, setPlatformFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [languageFilter, setLanguageFilter] = useState<string>('all');
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -168,6 +170,29 @@ export default function App() {
     );
   };
 
+  const handleUpdateLeadCategory = (leadId: string, category: string) => {
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id !== leadId) return l;
+        const updatedLead = { ...l, industry: category, toneOfVoice: determineToneOfVoice(category) };
+        if (l.message?.body) {
+          const newMsg = generateLocalMessageFallback(updatedLead, config);
+          return {
+            ...updatedLead,
+            message: {
+              ...l.message,
+              subject: newMsg.subject,
+              body: newMsg.body,
+              generatedAt: new Date().toLocaleTimeString(),
+            },
+          };
+        }
+        return updatedLead;
+      })
+    );
+    showToast(`Categoria aggiornata a "${category}"`);
+  };
+
   const handleSendMessages = (leadIds: string[]) => {
     setLeads((prev) =>
       prev.map((l) =>
@@ -247,12 +272,14 @@ export default function App() {
   // Filtered leads
   const filteredLeads = leads.filter((lead) => {
     if (platformFilter !== 'all' && lead.platform !== platformFilter) return false;
+    if (categoryFilter !== 'all' && lead.industry !== categoryFilter) return false;
     if (languageFilter !== 'all' && lead.language !== languageFilter) return false;
     if (lead.leadScore < minScoreFilter) return false;
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase();
       const match =
         lead.shopName.toLowerCase().includes(q) ||
+        (lead.industry && lead.industry.toLowerCase().includes(q)) ||
         (lead.shortNotes && lead.shortNotes.toLowerCase().includes(q)) ||
         (lead.city && lead.city.toLowerCase().includes(q));
       if (!match) return false;
@@ -657,6 +684,8 @@ export default function App() {
                 <LeadFilters
                   platformFilter={platformFilter}
                   setPlatformFilter={setPlatformFilter}
+                  categoryFilter={categoryFilter}
+                  setCategoryFilter={setCategoryFilter}
                   languageFilter={languageFilter}
                   setLanguageFilter={setLanguageFilter}
                   minScoreFilter={minScoreFilter}
@@ -692,6 +721,7 @@ export default function App() {
                     onOpenOutreachForLead={handleOpenOutreachForLead}
                     onDeleteLead={handleDeleteLead}
                     onOpenCSVModal={() => setIsCSVModalOpen(true)}
+                    onUpdateLeadCategory={handleUpdateLeadCategory}
                   />
                 </div>
               </div>
@@ -704,6 +734,7 @@ export default function App() {
                   config={config}
                   onUpdateLeadMessage={handleUpdateLeadMessage}
                   onSendMessages={handleSendMessages}
+                  onUpdateLeadCategory={handleUpdateLeadCategory}
                   onLeadsUpdated={(updatedLeads) => {
                     setLeads((prev) =>
                       prev.map((l) => {
