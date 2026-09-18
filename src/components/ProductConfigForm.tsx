@@ -255,20 +255,31 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                       const derivedTarget = analysis.targetAudience || formData.targetAudience;
                       const derivedOffer = analysis.offerType || formData.offerType || 'digital_product';
 
-                      const newAssets = {
-                        awareness: [
-                          `Guida introduttiva e best practice per ${derivedName}`,
-                          `Report e analisi: come ${derivedName} risolve le criticità di settore`,
-                        ],
-                        evaluation: [
-                          `Demo video interattiva e panoramica delle feature di ${derivedName}`,
-                          `Confronto ROI, scheda tecnica e casi studio per ${derivedName}`,
-                        ],
-                        purchase: [
-                          `Link di attivazione e onboarding prioritario per ${derivedName}: ${effectiveUrl}`,
-                          `Consulenza personalizzata e configurazione guidata per ${derivedName}`,
-                        ],
-                      };
+                      const hasValidFunnelAssets =
+                        analysis?.funnelAssets &&
+                        Array.isArray(analysis.funnelAssets.awareness) &&
+                        analysis.funnelAssets.awareness.length > 0 &&
+                        Array.isArray(analysis.funnelAssets.evaluation) &&
+                        analysis.funnelAssets.evaluation.length > 0 &&
+                        Array.isArray(analysis.funnelAssets.purchase) &&
+                        analysis.funnelAssets.purchase.length > 0;
+
+                      const newAssets = hasValidFunnelAssets
+                        ? analysis.funnelAssets
+                        : {
+                            awareness: [
+                              `Guida introduttiva e best practice per ${derivedName}`,
+                              `Report e analisi: come ${derivedName} risolve le criticità di settore`,
+                            ],
+                            evaluation: [
+                              `Demo video interattiva e panoramica delle feature di ${derivedName}`,
+                              `Confronto ROI, scheda tecnica e casi studio per ${derivedName}`,
+                            ],
+                            purchase: [
+                              `Link di attivazione e onboarding prioritario per ${derivedName}: ${effectiveUrl}`,
+                              `Consulenza personalizzata e configurazione guidata per ${derivedName}`,
+                            ],
+                          };
 
                       const updatedConfig: ProductConfig = {
                         ...formData,

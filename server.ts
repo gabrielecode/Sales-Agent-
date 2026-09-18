@@ -459,6 +459,29 @@ function extractProductAnalysisFromHtml(htmlText: string, cleanedText: string, u
 
   const priceMatch = cleanedText.match(/(?:CHF|€|\$)\s*\d+[\.,]?\d*(?:\s*\/\s*(?:mese|anno|month|year))?/i)
     || (lowerText.includes("gratis") || lowerText.includes("free") ? "Versione di prova gratuita disponibile" : null);
+  const pricingHint = typeof priceMatch === "string" ? priceMatch : (priceMatch ? priceMatch[0] : null);
+
+  const feat1 = keyFeatures[0] || "funzionalità avanzate";
+  const feat2 = keyFeatures[1] || "gestione centralizzata";
+
+  const funnelAssets = {
+    awareness: [
+      `Guida introduttiva: come ottimizzare i processi e superare le criticità con ${derivedName}`,
+      `Report di approfondimento sulle potenzialità di ${derivedName} per ${feat1.toLowerCase()}`,
+    ],
+    evaluation: [
+      `Panoramica interattiva e demo delle funzionalità chiave di ${derivedName} (${feat1} e ${feat2})`,
+      pricingHint
+        ? `Analisi del ritorno sull'investimento (ROI) e proposta economica di ${derivedName} (${pricingHint})`
+        : `Scheda tecnica comparativa e analisi dell'impatto aziendale di ${derivedName}`,
+    ],
+    purchase: [
+      pricingHint
+        ? `Attivazione immediata dell'offerta dedicata a ${derivedName} (${pricingHint}) su: ${url}`
+        : `Attivazione immediata e onboarding prioritario per ${derivedName}: ${url}`,
+      `Consulenza personalizzata e supporto all'avvio su misura per ${derivedName}`,
+    ],
+  };
 
   return {
     productName: derivedName,
@@ -466,10 +489,49 @@ function extractProductAnalysisFromHtml(htmlText: string, cleanedText: string, u
     keyFeatures,
     targetAudience,
     tone: "Professionale",
-    pricingHint: typeof priceMatch === "string" ? priceMatch : (priceMatch ? priceMatch[0] : null),
+    pricingHint,
     offerType,
     sourceUrl: url,
+    funnelAssets,
   };
+}
+
+// Helper to validate that each funnel stage is an array of non-empty strings, falling back if not
+function sanitizeFunnelAssets(
+  candidate: any,
+  fallback: { awareness?: string[]; evaluation?: string[]; purchase?: string[] }
+): { awareness: string[]; evaluation: string[]; purchase: string[] } {
+  const stages = ["awareness", "evaluation", "purchase"] as const;
+  const safeFallback = {
+    awareness: Array.isArray(fallback?.awareness) ? fallback.awareness : [],
+    evaluation: Array.isArray(fallback?.evaluation) ? fallback.evaluation : [],
+    purchase: Array.isArray(fallback?.purchase) ? fallback.purchase : [],
+  };
+
+  if (!candidate || typeof candidate !== "object") {
+    return safeFallback;
+  }
+
+  const result: { awareness: string[]; evaluation: string[]; purchase: string[] } = {
+    awareness: safeFallback.awareness,
+    evaluation: safeFallback.evaluation,
+    purchase: safeFallback.purchase,
+  };
+
+  for (const stage of stages) {
+    const candidateStage = candidate[stage];
+    if (
+      Array.isArray(candidateStage) &&
+      candidateStage.length > 0 &&
+      candidateStage.every((item: any) => typeof item === "string" && item.trim().length > 0)
+    ) {
+      result[stage] = candidateStage.map((item: string) => item.trim());
+    } else {
+      result[stage] = safeFallback[stage];
+    }
+  }
+
+  return result;
 }
 
 // Normalize request URL if routed through Vercel rewrites or catch-all functions
@@ -611,6 +673,12 @@ app.get(["/api/config-status", "/config-status"], (req, res) => {
 
 ${cleanedText ? `Contenuto estratto dalla pagina:\n"""\n${truncatedText}\n"""` : `Nota: La pagina non è accessibile direttamente online (es. protezione bot). Deduci e struttura il profilo del prodotto a partire dall'URL (${url}), dal dominio e dal settore correlato.`}
 
+Regole per la generazione dei funnelAssets:
+- Ogni asset deve essere SPECIFICO per il prodotto analizzato: usa nome reale, feature reali, pricing reale estratti dalla pagina. Vietato testo generico o placeholder validi per qualsiasi prodotto.
+- awareness: contenuto educativo/gratuito, nessuna pressione d'acquisto.
+- evaluation: dimostrazione di valore concreto (demo, case study, confronto), citando feature/pricing reali quando disponibili.
+- purchase: CTA di chiusura; almeno UNO dei due asset deve includere per intero l'URL del prodotto analizzato (${url}).
+
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
 {
   "productName": "string (Nome reale e specifico del prodotto/brand/servizio estratto dalla pagina o dominio)",
@@ -619,7 +687,12 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   "targetAudience": "string (chi è il cliente ideale o target di riferimento)",
   "tone": "string (es. Professionale, Informale, Innovativo, Tecnico)",
   "pricingHint": "string o null (informazioni su prezzi, abbonamenti, prova gratuita o sconti se presenti)",
-  "offerType": "software" | "digital_product" | "affiliate" | "collab" | "sponsorship"
+  "offerType": "software" | "digital_product" | "affiliate" | "collab" | "sponsorship",
+  "funnelAssets": {
+    "awareness": ["string", "string"],
+    "evaluation": ["string", "string"],
+    "purchase": ["string", "string"]
+  }
 }`;
 
 
@@ -645,6 +718,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
                 ...parsedAnalysis,
                 sourceUrl: url,
                 analyzedAt: new Date().toISOString(),
+                funnelAssets: sanitizeFunnelAssets(parsedAnalysis.funnelAssets, heuristicAnalysis.funnelAssets),
               },
             });
           }
@@ -705,6 +779,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
                   ...parsedAnalysis,
                   analyzedAt: new Date().toISOString(),
                   sourceUrl: url,
+                  funnelAssets: sanitizeFunnelAssets(parsedAnalysis.funnelAssets, heuristicAnalysis.funnelAssets),
                 },
               });
             }
