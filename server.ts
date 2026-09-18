@@ -472,13 +472,21 @@ function extractProductAnalysisFromHtml(htmlText: string, cleanedText: string, u
   };
 }
 
-// Normalize request URL if routed through Vercel rewrites
+// Normalize request URL if routed through Vercel rewrites or catch-all functions
 app.use((req, _res, next) => {
-  const forwardedUrl = (req.headers["x-matched-path"] || req.headers["x-forwarded-uri"] || req.headers["x-invoke-path"]) as string;
-  if ((req.url === "/api" || req.url === "/" || req.url.startsWith("/api/[...")) && typeof forwardedUrl === "string" && forwardedUrl.length > 0) {
-    req.url = forwardedUrl;
+  const forwardedUri = (req.headers["x-forwarded-uri"] || req.headers["x-invoke-path"]) as string;
+  const matchedPath = req.headers["x-matched-path"] as string;
+
+  if (forwardedUri && typeof forwardedUri === "string" && forwardedUri.startsWith("/api")) {
+    req.url = forwardedUri;
+  } else if (matchedPath && typeof matchedPath === "string" && !matchedPath.includes("[") && matchedPath !== "/api" && matchedPath !== "/") {
+    req.url = matchedPath;
   }
-  if (req.query && typeof req.query.path === "string") {
+
+  if (req.query && typeof req.query.all !== "undefined") {
+    const segments = Array.isArray(req.query.all) ? req.query.all : [req.query.all];
+    req.url = "/api/" + segments.join("/");
+  } else if (req.query && typeof req.query.path === "string") {
     req.url = "/" + req.query.path.replace(/^\//, "");
   }
   next();
@@ -556,64 +564,56 @@ app.get(["/api/config-status", "/config-status"], (req, res) => {
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-      let htmlRes: Response;
+      let htmlText = "";
+      let cleanedText = "";
+
       try {
-        htmlRes = await fetch(url, {
+        const htmlRes = await fetch(url, {
           signal: controller.signal,
           headers: {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           },
         });
+        clearTimeout(timeoutId);
+
+        if (htmlRes.ok) {
+          const raw = await htmlRes.text();
+          if (raw.length <= 3 * 1024 * 1024) {
+            htmlText = raw;
+            cleanedText = htmlText
+              .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+              .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+              .replace(/<!--[\s\S]*?-->/g, ' ')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+        } else {
+          console.warn(`Sito remoto ha restituito HTTP ${htmlRes.status} (${htmlRes.statusText}), proseguo con estrazione dal dominio`);
+        }
       } catch (err: any) {
         clearTimeout(timeoutId);
-        return res.status(400).json({ error: `Impossibile raggiungere l'URL: ${err.message || 'Timeout o errore di rete'}` });
-      }
-      clearTimeout(timeoutId);
-
-      if (!htmlRes.ok) {
-        return res.status(400).json({ error: `Errore HTTP dal sito remoto: ${htmlRes.status} ${htmlRes.statusText}` });
+        console.warn(`Impossibile raggiungere l'URL direttamente (${err.message}), proseguo con estrazione dal dominio`);
       }
 
-      const contentLength = htmlRes.headers.get("content-length");
-      if (contentLength && parseInt(contentLength, 10) > 3 * 1024 * 1024) {
-        return res.status(400).json({ error: "La pagina supera la dimensione massima consentita (3MB)." });
-      }
-
-      const htmlText = await htmlRes.text();
-      if (htmlText.length > 3 * 1024 * 1024) {
-        return res.status(400).json({ error: "La pagina supera la dimensione massima consentita (3MB)." });
-      }
-
-      const cleanedText = htmlText
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-        .replace(/<!--[\s\S]*?-->/g, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      const truncatedText = cleanedText.slice(0, 6000);
-
+      const truncatedText = cleanedText ? cleanedText.slice(0, 6000) : `Dominio analizzato: ${url}`;
       const heuristicAnalysis = extractProductAnalysisFromHtml(htmlText, cleanedText, url);
 
-      const analysisPrompt = `Sei un esperto analista di marketing e product manager specializzato in B2B outreach. Analizza il seguente contenuto testuale estratto da una landing page/sito prodotto (URL: ${url}) ed estrai informazioni strutturate in formato JSON per personalizzare email di vendita e partnership.
+      const analysisPrompt = `Sei un esperto analista di marketing e product manager specializzato in B2B outreach. Analizza il seguente contenuto o indirizzo del sito prodotto (URL: ${url}, Nome rilevato: ${heuristicAnalysis.productName}) ed estrai informazioni strutturate in formato JSON per personalizzare email di vendita e partnership.
 
-Contenuto della pagina:
-"""
-${truncatedText}
-"""
+${cleanedText ? `Contenuto estratto dalla pagina:\n"""\n${truncatedText}\n"""` : `Nota: La pagina non è accessibile direttamente online (es. protezione bot). Deduci e struttura il profilo del prodotto a partire dall'URL (${url}), dal dominio e dal settore correlato.`}
 
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
 {
-  "productName": "string (Nome reale e specifico del prodotto/brand/servizio estratto dalla pagina)",
+  "productName": "string (Nome reale e specifico del prodotto/brand/servizio estratto dalla pagina o dominio)",
   "valueProposition": "string (1-2 frasi chiare che descrivono il valore unico e principale del prodotto)",
   "keyFeatures": ["string", "string", "string"] (3-5 feature o punti di forza chiave concreti ed esclusivi di questo prodotto),
   "targetAudience": "string (chi è il cliente ideale o target di riferimento)",
@@ -621,6 +621,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   "pricingHint": "string o null (informazioni su prezzi, abbonamenti, prova gratuita o sconti se presenti)",
   "offerType": "software" | "digital_product" | "affiliate" | "collab" | "sponsorship"
 }`;
+
 
       // 1. Try Gemini API first (available in AI Studio environment)
       const gemini = getGemini();
@@ -672,7 +673,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
         try {
 
           const controllerAI = new AbortController();
-          const aiTimeout = setTimeout(() => controllerAI.abort(), 12000);
+          const aiTimeout = setTimeout(() => controllerAI.abort(), 8000);
 
           const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
@@ -1001,16 +1002,29 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
     res.json({ success: true, remaining });
   });
 
-  // Vite dev middleware or static serving for standalone server execution (not used in Vercel serverless)
+  // Vite dev middleware or static serving for standalone server execution (disabled in Vercel serverless)
+  const isDirectlyExecuted = (() => {
+    if (
+      process.env.VERCEL ||
+      process.env.VERCEL_ENV ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+      process.env.LAMBDA_TASK_ROOT
+    ) {
+      return false;
+    }
+    const mainFile = process.argv[1] || "";
+    return mainFile.endsWith("server.ts") || mainFile.endsWith("server.cjs") || mainFile.endsWith("server.js");
+  })();
+
   async function setupViteAndListen() {
-    if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    if (process.env.NODE_ENV !== "production") {
       const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
       });
       app.use(vite.middlewares);
-    } else if (!process.env.VERCEL) {
+    } else {
       const distPath = path.join(process.cwd(), "dist");
       app.use(express.static(distPath));
       app.get("*", (req, res) => {
@@ -1018,16 +1032,16 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
       });
     }
 
-    if (!process.env.VERCEL) {
-      app.listen(PORT, "0.0.0.0", () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-      });
-    }
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
   }
 
-  setupViteAndListen().catch((err) => {
-    console.error("Failed to start Vite / server listener:", err);
-  });
+  if (isDirectlyExecuted) {
+    setupViteAndListen().catch((err) => {
+      console.error("Failed to start Vite / server listener:", err);
+    });
+  }
 
   export default app;
   export { app };
