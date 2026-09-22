@@ -23,7 +23,16 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const apiKey = (process.env.RESEND_API_KEY || config?.resendApiKey || "").trim();
+    const cleanKey = (key: any) =>
+      (typeof key === "string" ? key : "")
+        .replace(/^["']|["']$/g, "")
+        .replace(/^Bearer\s+/i, "")
+        .trim();
+
+    const clientKey = cleanKey(config?.resendApiKey);
+    const serverKey = cleanKey(process.env.RESEND_API_KEY);
+    const apiKey = clientKey || serverKey;
+
     const fromName = (config?.emailFromName || process.env.EMAIL_FROM_NAME || "Commerciale").trim();
     
     // Resolve fromAddress: prefer config.emailFromAddress, fallback to env unless it's a webmail like gmail, default to commerciale@sititicino.ch
@@ -48,12 +57,12 @@ export default async function handler(req: any, res: any) {
     ).trim();
     const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim() || "risposte@inbound.sititicino.ch";
 
-    // If no API key is provided, safely simulate
+    // If no API key is found on client nor on server, do NOT silently fake an send; return clear error
     if (!apiKey) {
       return res.status(200).json({
-        success: true,
-        simulated: true,
-        messageId: `sim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        success: false,
+        simulated: false,
+        error: "Nessuna chiave Resend API trovata. Inserisci la tua API Key (team 'sale.autoagent') nel tab 'Prodotto & Setup' o configurala nelle variabili d'ambiente (RESEND_API_KEY) su Vercel.",
       });
     }
 
@@ -86,12 +95,15 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Return the exact error message from Resend without altering or hardcoding
-    const exactErrorMsg =
+    let exactErrorMsg =
       resData?.message ||
       resData?.error ||
       (typeof resData === "string" ? resData : "") ||
       `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText || ""}`;
+
+    if (exactErrorMsg.includes("is not verified") || exactErrorMsg.includes("domain")) {
+      exactErrorMsg += " (Verifica che la chiave API appartenga al team 'sale.autoagent' su resend.com/api-keys e non al tuo account personale)";
+    }
 
     return res.status(200).json({
       success: false,

@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  ExternalLink,
 } from 'lucide-react';
 
 interface OutreachPanelProps {
@@ -575,6 +576,27 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
               </button>
             )}
           </div>
+
+          {/* Resend Domain Mismatch Diagnostic Callout */}
+          {sendReport.errors.some((e) => e.error.toLowerCase().includes('not verified') || e.error.toLowerCase().includes('domain')) && (
+            <div className="mt-3 p-3 bg-amber-500/10 border border-amber-300 rounded-xl text-amber-950 text-xs space-y-2">
+              <div className="flex items-start gap-2 font-semibold text-amber-900">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>Causa dell'errore: Team Mismatch su Resend</span>
+              </div>
+              <p className="text-[11px] text-amber-900 leading-relaxed">
+                Il dominio <strong>sititicino.ch</strong> è verificato all'interno del team <strong>sale.autoagent</strong> su Resend, ma la chiave API attiva (su Vercel o in locale) è stata generata in un altro account/team (es. account personale) oppure ha permessi limitati e non può accedere a tale dominio.
+              </p>
+              <div className="p-2.5 bg-white/90 rounded-lg border border-amber-200 text-[11px] space-y-1.5">
+                <div className="font-semibold text-slate-800">Come risolvere subito:</div>
+                <ol className="list-decimal list-inside space-y-1 text-slate-700">
+                  <li>Apri <a href="https://resend.com/api-keys" target="_blank" rel="noreferrer" className="underline font-semibold text-indigo-600 inline-flex items-center gap-0.5">resend.com/api-keys <ExternalLink className="w-2.5 h-2.5" /></a> e assicurati che in alto a sinistra sia selezionato il team <strong>sale.autoagent</strong></li>
+                  <li>Crea una nuova chiave API con permission <strong>Full access</strong></li>
+                  <li>Vai nel tab <strong>"Prodotto & Setup"</strong> di questa app e inseriscila (o aggiorna <code>RESEND_API_KEY</code> su Vercel)</li>
+                </ol>
+              </div>
+            </div>
+          )}
 
           {showErrorDetails && sendReport.errors.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-amber-200/60 space-y-1.5 font-mono text-[11px]">
