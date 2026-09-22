@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lead, ProductConfig, FunnelStage } from '../types';
 import { generateOutreachMessageWithAI } from '../lib/openrouter';
 import { generateLocalMessageFallback } from '../lib/messageFallback';
+import { CategorySelect } from './CategorySelect';
 import { sendOutreachEmail } from '../lib/resendClient';
 import { executeAutopilotRun, AutopilotRunResult } from '../lib/autopilot';
 import { getFunnelStage, FUNNEL_STAGE_LABELS, FUNNEL_STAGE_COLORS, getFunnelStageDescription } from '../lib/funnelStage';
@@ -34,19 +35,6 @@ interface OutreachPanelProps {
   onLeadsUpdated?: (updatedLeads: Lead[]) => void;
   onUpdateLeadCategory?: (leadId: string, category: string) => void;
 }
-
-const OUTREACH_CATEGORIES = [
-  'Alimentare & Enogastronomia',
-  'Moda & Accessori',
-  'Casa & Arredamento',
-  'Bellezza & Cosmetica',
-  'Artigianato & Fatto a Mano',
-  'Gioielli & Bijoux',
-  'Editoria & Libri',
-  'Sport & Tempo Libero',
-  'Casa, Decorazioni & Arte',
-  'Infanzia & Giocattoli',
-];
 
 interface SendReport {
   totalAttempted: number;
@@ -652,30 +640,17 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   <span className="text-[11px] font-medium text-slate-500">Settore / Categoria:</span>
                   {onUpdateLeadCategory ? (
-                    <select
-                      value={currentLead.industry || 'Alimentare & Enogastronomia'}
-                      onChange={(e) => {
-                        const newCat = e.target.value;
+                    <CategorySelect
+                      value={currentLead.industry || 'Servizi & Imprese Locali'}
+                      onChange={(newCat) => {
                         onUpdateLeadCategory(currentLead.id, newCat);
-                        // Also regenerate the email instantly with the new category
                         const updated = generateLocalMessageFallback({ ...currentLead, industry: newCat }, config);
                         onUpdateLeadMessage(currentLead.id, updated.subject, updated.body);
                       }}
-                      className="text-xs bg-indigo-50 hover:bg-indigo-100/80 text-indigo-950 border border-indigo-200 font-semibold rounded-lg px-2 py-0.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      title="Seleziona la categoria merceologica per personalizzare l'apertura dell'email"
-                    >
-                      {OUTREACH_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                      {!OUTREACH_CATEGORIES.includes(currentLead.industry || '') && currentLead.industry && (
-                        <option value={currentLead.industry}>{currentLead.industry}</option>
-                      )}
-                    </select>
+                    />
                   ) : (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      {currentLead.industry || 'Alimentare & Enogastronomia'}
+                      {currentLead.industry || 'Servizi & Imprese Locali'}
                     </span>
                   )}
                 </div>

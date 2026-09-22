@@ -1,5 +1,6 @@
 import { Lead, ProductConfig, Platform, Language } from '../types';
 import { calculateLeadScore } from './leadScoring';
+import { detectSectorSmart } from './categories';
 
 /**
  * Autodetects whether the delimiter is comma, semicolon, or tab.
@@ -86,64 +87,7 @@ export function detectMerchandiseCategory(
   url: string = '',
   configDefault?: string
 ): string {
-  const cleanRaw = (rawIndustry || '').trim();
-  const rawLower = cleanRaw.toLowerCase();
-
-  // If already a valid specific category, normalize and return it
-  if (
-    cleanRaw &&
-    !['e-commerce', 'ecommerce', 'web', 'online', 'non specificato', 'generico', 'altro'].includes(rawLower)
-  ) {
-    return cleanRaw;
-  }
-
-  // Scan context (shop name, notes, url) for merchandise domain keywords
-  const context = `${shopName} ${notes} ${url} ${cleanRaw}`.toLowerCase();
-
-  if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar|panettone|formagg)/i.test(context)) {
-    return 'Alimentare & Enogastronomia';
-  }
-  if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazioni\s*casa)/i.test(context)) {
-    return 'Casa, Decorazioni & Arte';
-  }
-  if (/(book|libri|editor|author|autore|guide|romanzo|kdp|racconti|fumetti|publishing)/i.test(context)) {
-    return 'Editoria, Guide & Libri';
-  }
-  if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|outfit|calzature|pelletteria)/i.test(context)) {
-    return 'Moda & Accessori';
-  }
-  if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi|gemme)/i.test(context)) {
-    return 'Gioielli & Bijoux';
-  }
-  if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica|cuscini)/i.test(context)) {
-    return 'Casa & Arredamento';
-  }
-  if (/(beauty|bellezza|cosmet|skincare|creme|saponi|make-?up|profum|benessere|cura\s*corpo)/i.test(context)) {
-    return 'Bellezza & Cosmetica';
-  }
-  if (/(artigian|handmade|fatto\s*a\s*mano|cuoio|legno|ceramica|scultura|laboratorio)/i.test(context)) {
-    return 'Artigianato & Fatto a Mano';
-  }
-  if (/(sport|fitness|outdoor|bici|bike|trekking|palestra|montagna|escursion)/i.test(context)) {
-    return 'Sport & Tempo Libero';
-  }
-  if (/(kids|bambin|infanzia|giochi|giocattoli|puericultura|neonati)/i.test(context)) {
-    return 'Infanzia & Giocattoli';
-  }
-  if (/(pet|cani|gatti|animali|mangimi|accessori\s*animali)/i.test(context)) {
-    return 'Animali & Pet Care';
-  }
-  if (/(elettron|gadget|tech|software|hardware|audio|informatica|digitale|app)/i.test(context)) {
-    return 'Tecnologia & Gadget';
-  }
-
-  // Fallback to configured target merchandise category if present
-  if (configDefault && configDefault.trim()) {
-    return configDefault.trim();
-  }
-
-  // Generic natural fallback (avoiding "E-Commerce" or "su Web")
-  return 'Artigianato & Vendita Prodotti';
+  return detectSectorSmart(shopName, notes, rawIndustry, url, configDefault);
 }
 
 export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {

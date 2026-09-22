@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lead } from '../types';
 import { getFunnelStage, FUNNEL_STAGE_LABELS, FUNNEL_STAGE_COLORS } from '../lib/funnelStage';
+import { CategorySelect } from './CategorySelect';
 import {
   ExternalLink,
   Mail,
@@ -23,19 +24,6 @@ interface LeadTableProps {
   onOpenCSVModal?: () => void;
   onUpdateLeadCategory?: (id: string, category: string) => void;
 }
-
-const MERCHANDISE_CATEGORIES = [
-  'Alimentare & Enogastronomia',
-  'Moda & Accessori',
-  'Casa & Arredamento',
-  'Bellezza & Cosmetica',
-  'Artigianato & Fatto a Mano',
-  'Gioielli & Bijoux',
-  'Editoria & Libri',
-  'Sport & Tempo Libero',
-  'Casa, Decorazioni & Arte',
-  'Infanzia & Giocattoli',
-];
 
 export const LeadTable: React.FC<LeadTableProps> = ({
   leads,
@@ -155,9 +143,16 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          {lead.industry || 'Alimentare & Enogastronomia'}
-                        </span>
+                        {onUpdateLeadCategory ? (
+                          <CategorySelect
+                            value={lead.industry || 'Servizi & Imprese Locali'}
+                            onChange={(newCat) => onUpdateLeadCategory(lead.id, newCat)}
+                          />
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {lead.industry || 'Servizi & Imprese Locali'}
+                          </span>
+                        )}
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700">
                           {lead.platform}
                         </span>
@@ -362,24 +357,13 @@ export const LeadTable: React.FC<LeadTableProps> = ({
 
                   <td className="py-3 px-4">
                     {onUpdateLeadCategory ? (
-                      <select
-                        value={lead.industry || 'Alimentare & Enogastronomia'}
-                        onChange={(e) => onUpdateLeadCategory(lead.id, e.target.value)}
-                        className="text-xs bg-indigo-50/70 hover:bg-indigo-50 text-indigo-900 border border-indigo-200 font-medium rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[160px] truncate"
-                        title="Modifica categoria merceologica per personalizzare l'email"
-                      >
-                        {MERCHANDISE_CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                        {!MERCHANDISE_CATEGORIES.includes(lead.industry || '') && lead.industry && (
-                          <option value={lead.industry}>{lead.industry}</option>
-                        )}
-                      </select>
+                      <CategorySelect
+                        value={lead.industry || 'Servizi & Imprese Locali'}
+                        onChange={(newCat) => onUpdateLeadCategory(lead.id, newCat)}
+                      />
                     ) : (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {lead.industry || 'Alimentare & Enogastronomia'}
+                        {lead.industry || 'Servizi & Imprese Locali'}
                       </span>
                     )}
                   </td>

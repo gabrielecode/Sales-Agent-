@@ -193,24 +193,48 @@ async function generateMessageInternal(
   const valueProp = config?.productAnalysis?.valueProposition || config?.productDescription || "";
   const keyFeatures = config?.productAnalysis?.keyFeatures || [];
 
-  // Intelligently resolve the specific merchandise category
+  // Intelligently resolve the specific sector / merchandise category
   const rawInd = (lead.industry || "").trim();
   const rawLower = rawInd.toLowerCase();
   let categoryClean = rawInd;
-  if (!rawInd || ["e-commerce", "ecommerce", "web", "online", "non specificato", "generico", "digitale", "aziendale"].includes(rawLower)) {
+  if (!rawInd || ["e-commerce", "ecommerce", "web", "online", "non specificato", "generico", "digitale", "aziendale", "altro"].includes(rawLower)) {
     const ctx = `${lead.shopName || ""} ${lead.shortNotes || ""} ${config?.targetMerchandiseCategory || ""} ${config?.targetAudience || ""}`.toLowerCase();
-    if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar)/i.test(ctx)) {
+    if (/(pittur|pittor|imbianchin|verniciat|tintegg|cartongess|facciat)/i.test(ctx)) {
+      categoryClean = "Pittura & Imbiancatura";
+    } else if (/(idraulic|plumb|sanitar|tubatur|riscaldament|caldai|pompa.*calor|termoidraulic)/i.test(ctx)) {
+      categoryClean = "Idraulica & Termoidraulica";
+    } else if (/(clean|puliz|sanific|disinfez|lavagg|vetri|multiserv|facility|sgomber|tsunami)/i.test(ctx)) {
+      categoryClean = "Pulizie & Multiservizi";
+    } else if (/(edil|costruzion|ristruttur|murator|cantiere|paviment|piastrell|tetto|tetti)/i.test(ctx)) {
+      categoryClean = "Edilizia & Ristrutturazioni";
+    } else if (/(elettric|elettro|impiant.*elettric|fotovoltaic|domotic)/i.test(ctx)) {
+      categoryClean = "Elettricisti & Impianti Elettrici";
+    } else if (/(falegnam|serrament|infiss|porte|finestr)/i.test(ctx)) {
+      categoryClean = "Falegnameria & Serramenti";
+    } else if (/(fabbr|carpenteri.*metallic|ringhier|cancell)/i.test(ctx)) {
+      categoryClean = "Fabbri & Carpenteria Metallica";
+    } else if (/(giardin|verde|potatur|alber|prat|paesaggist)/i.test(ctx)) {
+      categoryClean = "Giardinaggio & Manutenzione Verde";
+    } else if (/(climatizz|condizionat|aeraulic|ventilazion)/i.test(ctx)) {
+      categoryClean = "Climatizzazione & Riscaldamento";
+    } else if (/(auto|moto|officin|meccanic|carrozzer|gommist)/i.test(ctx)) {
+      categoryClean = "Auto, Moto & Officine Meccaniche";
+    } else if (/(architett|geometr|ingegner|progettazion|studio.*tecnic)/i.test(ctx)) {
+      categoryClean = "Studi Tecnici, Architetti & Geometri";
+    } else if (/(fiduciar|commercialist|contabil|tributar|avvocat|consulenz)/i.test(ctx)) {
+      categoryClean = "Consulenza Aziendale, Fiscale & Fiduciaria";
+    } else if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar)/i.test(ctx)) {
       categoryClean = "Alimentare & Enogastronomia";
     } else if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazion)/i.test(ctx)) {
       categoryClean = "Casa, Decorazioni & Arte";
     } else if (/(book|libri|editor|author|autore|guide|romanzo|kdp|racconti|fumetti)/i.test(ctx)) {
       categoryClean = "Editoria & Guide";
     } else if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|pelletteria)/i.test(ctx)) {
-      categoryClean = "Moda & Accessori";
-    } else if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi)/i.test(ctx)) {
-      categoryClean = "Gioielli & Bijoux";
+      categoryClean = "Moda, Abbigliamento & Accessori";
+    } else if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi|orolog)/i.test(ctx)) {
+      categoryClean = "Gioielli, Orologi & Bijoux";
     } else if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica)/i.test(ctx)) {
-      categoryClean = "Casa & Arredamento";
+      categoryClean = "Casa, Arredamento & Design";
     } else if (/(beauty|bellezza|cosmet|skincare|creme|saponi|make-?up|profum|benessere)/i.test(ctx)) {
       categoryClean = "Bellezza & Cosmetica";
     } else if (/(artigian|handmade|fatto\s*a\s*mano|cuoio|legno)/i.test(ctx)) {
@@ -220,17 +244,21 @@ async function generateMessageInternal(
     } else if (config?.targetMerchandiseCategory) {
       categoryClean = config.targetMerchandiseCategory;
     } else {
-      categoryClean = "Prodotti di Qualità & Retail";
+      categoryClean = "Servizi & Imprese Locali";
     }
   }
 
   const pLower = (lead.platform || "").toLowerCase();
-  let platformLabel = "store online";
+  const isServiceOrCraft = /(pittur|idraulic|puliz|multiserv|edil|elettric|falegnam|fabbr|giardin|climatizz|meccanic|artigian|consulenz|studi|architett)/i.test(categoryClean);
+  let platformLabel = isServiceOrCraft ? "sito web e presenza sul territorio" : "store online";
   if (pLower.includes("etsy")) platformLabel = "shop Etsy";
   else if (pLower.includes("shopify")) platformLabel = "store Shopify";
   else if (pLower.includes("amazon") || pLower.includes("kdp")) platformLabel = "pubblicazioni Amazon KDP";
   else if (pLower.includes("instagram") || pLower.includes("ig")) platformLabel = "pagina Instagram";
   else if (pLower.includes("linkedin")) platformLabel = "profilo LinkedIn";
+  else if (pLower.includes("web") || !pLower) {
+    platformLabel = isServiceOrCraft ? "sito web e attività sul territorio" : "presenza online e sito web";
+  }
 
   let stageGuideline = "";
   if (stage === "awareness") {
@@ -318,7 +346,7 @@ IMPORTANTE:
             responseMimeType: "application/json",
           },
         }),
-        8000,
+        25000,
         "Gemini generateMessage"
       );
       const content = geminiRes.text || "";
@@ -332,8 +360,8 @@ IMPORTANTE:
           };
         }
       }
-    } catch (geminiErr) {
-      console.warn("Chiamata Gemini fallita in generateMessageInternal, fallback a OpenRouter/locale:", geminiErr);
+    } catch (geminiErr: any) {
+      console.log(`[Gemini generateMessage] Non disponibile (${geminiErr?.message || geminiErr}), attivazione fallback immediato.`);
     }
   }
 
@@ -788,7 +816,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
                 responseMimeType: "application/json",
               },
             }),
-            8000,
+            25000,
             "Gemini analyzeProduct"
           );
           const text = geminiRes.text || "";
@@ -806,8 +834,8 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
               },
             });
           }
-        } catch (geminiErr) {
-          console.warn("Chiamata Gemini fallita per analyze-product, fallback a OpenRouter/euristica:", geminiErr);
+        } catch (geminiErr: any) {
+          console.log(`[Gemini analyzeProduct] Non disponibile (${geminiErr?.message || geminiErr}), passaggio a fallback.`);
         }
       }
 

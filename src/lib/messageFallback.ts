@@ -1,5 +1,6 @@
 import { Lead, ProductConfig, FunnelStage, OfferType } from '../types';
 import { getFunnelStage } from './funnelStage';
+import { detectSectorSmart, isLocalOrServiceSector } from './categories';
 
 function getCleanMerchandiseCategory(
   industry?: string,
@@ -7,74 +8,43 @@ function getCleanMerchandiseCategory(
   shopName?: string,
   config?: any
 ): string {
-  const ind = (industry || '').trim();
-  const indLower = ind.toLowerCase();
-  if (
-    ind &&
-    !['e-commerce', 'ecommerce', 'web', 'online', 'non specificato', 'generico', 'digitale', 'aziendale'].includes(indLower)
-  ) {
-    return ind;
-  }
-
-  const context = `${shopName || ''} ${shortNotes || ''} ${config?.targetMerchandiseCategory || ''} ${config?.targetAudience || ''}`.toLowerCase();
-  if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar)/i.test(context)) {
-    return 'Alimentare & Enogastronomia';
-  }
-  if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazion)/i.test(context)) {
-    return 'Casa, Decorazioni & Arte';
-  }
-  if (/(book|libri|editor|author|autore|guide|romanzo|kdp|racconti|fumetti)/i.test(context)) {
-    return 'Editoria & Guide';
-  }
-  if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|pelletteria)/i.test(context)) {
-    return 'Moda & Accessori';
-  }
-  if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi)/i.test(context)) {
-    return 'Gioielli & Bijoux';
-  }
-  if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica)/i.test(context)) {
-    return 'Casa & Arredamento';
-  }
-  if (/(beauty|bellezza|cosmet|skincare|creme|saponi|make-?up|profum|benessere)/i.test(context)) {
-    return 'Bellezza & Cosmetica';
-  }
-  if (/(artigian|handmade|fatto\s*a\s*mano|cuoio|legno|laboratorio)/i.test(context)) {
-    return 'Artigianato & Fatto a Mano';
-  }
-  if (/(sport|fitness|outdoor|bici|trekking|montagna)/i.test(context)) {
-    return 'Sport & Tempo Libero';
-  }
-  if (/(kids|bambin|infanzia|giochi|giocattoli)/i.test(context)) {
-    return 'Infanzia & Giocattoli';
-  }
-  if (/(pet|cani|gatti|animali)/i.test(context)) {
-    return 'Animali & Pet Care';
-  }
-
-  if (config?.targetMerchandiseCategory && config.targetMerchandiseCategory.trim()) {
-    return config.targetMerchandiseCategory.trim();
-  }
-
-  return 'Prodotti Artigianali & Retail';
+  return detectSectorSmart(
+    shopName,
+    shortNotes,
+    industry,
+    '',
+    config?.targetMerchandiseCategory
+  );
 }
 
-function getPlatformPhrasing(platform: string, isInformal: boolean): string {
+function getPlatformPhrasing(platform: string, category: string, city: string = '', isInformal: boolean): string {
   const p = (platform || '').toLowerCase();
   if (p.includes('etsy')) return isInformal ? 'su Etsy' : 'sul vostro shop Etsy';
   if (p.includes('shopify')) return isInformal ? 'su Shopify' : 'sul vostro store Shopify';
   if (p.includes('amazon') || p.includes('kdp')) return isInformal ? 'su Amazon KDP' : 'con le vostre pubblicazioni su Amazon KDP';
   if (p.includes('instagram') || p.includes('ig')) return isInformal ? 'su Instagram' : 'sulla vostra pagina Instagram';
   if (p.includes('linkedin')) return isInformal ? 'su LinkedIn' : 'sul vostro profilo LinkedIn';
-  return isInformal ? 'sul vostro store online' : 'con il vostro store online';
+
+  if (isLocalOrServiceSector(category)) {
+    if (city) {
+      return isInformal ? `nella vostra attività a ${city}` : `con la vostra attività a ${city}`;
+    }
+    return isInformal ? 'nella vostra attività' : 'con la vostra realtà aziendale';
+  }
+
+  return isInformal ? 'online' : 'sul vostro sito web';
 }
 
-function getEnglishPlatformPhrasing(platform: string): string {
+function getEnglishPlatformPhrasing(platform: string, category: string, city: string = ''): string {
   const p = (platform || '').toLowerCase();
   if (p.includes('etsy')) return 'on Etsy';
   if (p.includes('shopify')) return 'on your Shopify store';
   if (p.includes('amazon') || p.includes('kdp')) return 'on Amazon KDP';
   if (p.includes('instagram') || p.includes('ig')) return 'on Instagram';
   if (p.includes('linkedin')) return 'on LinkedIn';
+  if (isLocalOrServiceSector(category)) {
+    return city ? `with your business in ${city}` : 'with your local operations';
+  }
   return 'online';
 }
 
@@ -106,14 +76,14 @@ export function generateLocalMessageFallback(
   const targetUrl = (config as any).productUrl || (config as any).productAnalysis?.sourceUrl || 'https://swissaffiliatebooster.ch';
 
   const category = getCleanMerchandiseCategory(lead.industry, lead.shortNotes, lead.shopName, config);
-  const platformPhrase = getPlatformPhrasing(lead.platform, isInformal);
+  const platformPhrase = getPlatformPhrasing(lead.platform, category, lead.city, isInformal);
 
   const awarenessAsset = config.funnelAssets?.awareness?.[0] || `la guida e analisi approfondita su ${productName}`;
   const evaluationAsset = config.funnelAssets?.evaluation?.[0] || `la demo interattiva e le specifiche di ${productName}`;
   const purchaseAsset = config.funnelAssets?.purchase?.[0] || `il link di attivazione immediata di ${productName}`;
 
   if (lead.language === 'en') {
-    const enPlatform = getEnglishPlatformPhrasing(lead.platform);
+    const enPlatform = getEnglishPlatformPhrasing(lead.platform, category, lead.city);
     const hook = isInformal
       ? `Hi team at ${lead.shopName}, I've been closely analyzing your presence in the ${category} space ${enPlatform}—your curation is top tier.`
       : `Dear ${lead.shopName} team, I have been following your established achievements in the ${category} sector ${enPlatform}.`;

@@ -510,14 +510,18 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               />
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {[
+                  'Pittura & Imbiancatura',
+                  'Idraulica & Termoidraulica',
+                  'Pulizie & Multiservizi',
+                  'Edilizia & Ristrutturazioni',
+                  'Elettricisti & Impianti Elettrici',
+                  'Falegnameria & Serramenti',
+                  'Giardinaggio & Manutenzione Verde',
                   'Alimentare & Enogastronomia',
                   'Moda & Accessori',
                   'Casa & Arredamento',
                   'Bellezza & Cosmetica',
                   'Artigianato & Fatto a Mano',
-                  'Gioielli & Bijoux',
-                  'Editoria & Libri',
-                  'Sport & Tempo Libero',
                 ].map((cat) => (
                   <button
                     key={cat}
