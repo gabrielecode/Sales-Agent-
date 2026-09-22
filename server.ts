@@ -434,29 +434,37 @@ async function sendEmailInternal(
   const serverKey = cleanKey(process.env.RESEND_API_KEY);
   const apiKey = clientKey || serverKey;
 
-  const fromName = (config?.emailFromName || process.env.EMAIL_FROM_NAME || "Commerciale").trim();
+  const cleanString = (val: any) =>
+    (typeof val === "string" ? val : "")
+      .replace(/^["']|["']$/g, "")
+      .trim();
+
+  const fromName = cleanString(config?.emailFromName || process.env.EMAIL_FROM_NAME || "Commerciale");
   
   // Resolve fromAddress: prefer config.emailFromAddress, fallback to env unless it's a webmail like gmail, default to commerciale@sititicino.ch
-  let fromAddress = (config?.emailFromAddress || "").trim();
+  let fromAddress = cleanString(config?.emailFromAddress);
   if (!fromAddress) {
-    const envFrom = (process.env.EMAIL_FROM_ADDRESS || "").trim();
+    const envFrom = cleanString(process.env.EMAIL_FROM_ADDRESS);
     if (envFrom && !/@(gmail|googlemail|yahoo|hotmail|outlook)\.com$/i.test(envFrom)) {
       fromAddress = envFrom;
     } else {
       fromAddress = "commerciale@sititicino.ch";
     }
   }
-  fromAddress = fromAddress.replace(/^mailto:\s*/i, "").trim() || "commerciale@sititicino.ch";
+  fromAddress = fromAddress.replace(/^mailto:\s*/i, "").replace(/^["']|["']$/g, "").trim() || "commerciale@sititicino.ch";
   const formattedFrom = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
 
-  // Resolve replyTo: strip any "mailto:" prefix, guaranteed pure email address
-  let rawReplyTo = (
+  // Resolve replyTo: strip any "mailto:" prefix and quotes, guaranteed pure email address
+  let rawReplyTo = cleanString(
     config?.emailReplyTo ||
     process.env.EMAIL_REPLY_TO ||
     process.env.EMAIL_REPLY_TO_ADDRESS ||
     "risposte@inbound.sititicino.ch"
-  ).trim();
-  const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim() || "risposte@inbound.sititicino.ch";
+  );
+  const cleanReplyTo = rawReplyTo
+    .replace(/^mailto:\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim() || "risposte@inbound.sititicino.ch";
 
   // If no API key is found on client nor on server, do NOT silently fake a send; return clear error
   if (!apiKey) {
