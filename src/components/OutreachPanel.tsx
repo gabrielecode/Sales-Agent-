@@ -261,6 +261,10 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
         errors,
       });
 
+      if (errors.length > 0) {
+        setShowErrorDetails(true);
+      }
+
       if (batchToSend.length < eligibleLeads.length) {
         setQuotaError(`Nota: sono stati inviati solo ${batchToSend.length} messaggi perché la quota giornaliera rimanente era di ${currentRemaining}.`);
       }

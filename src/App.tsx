@@ -41,6 +41,12 @@ export default function App() {
         if (!parsed.dailyOutreachLimit || parsed.dailyOutreachLimit === 25) {
           parsed.dailyOutreachLimit = 100;
         }
+        if (parsed.emailReplyTo) {
+          parsed.emailReplyTo = parsed.emailReplyTo.replace(/^mailto:\s*/i, '');
+        }
+        if (!parsed.emailFromAddress || parsed.emailFromAddress.endsWith('@gmail.com')) {
+          parsed.emailFromAddress = 'commerciale@sititicino.ch';
+        }
         return parsed;
       }
     } catch (e) {}

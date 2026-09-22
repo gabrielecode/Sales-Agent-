@@ -24,15 +24,28 @@ export default async function handler(req: any, res: any) {
     }
 
     const apiKey = (process.env.RESEND_API_KEY || config?.resendApiKey || "").trim();
-    const fromName = (process.env.EMAIL_FROM_NAME || config?.emailFromName || "Sales Agent").trim();
-    const fromAddress = (process.env.EMAIL_FROM_ADDRESS || config?.emailFromAddress || "onboarding@resend.dev").trim();
+    const fromName = (config?.emailFromName || process.env.EMAIL_FROM_NAME || "Commerciale").trim();
+    
+    // Resolve fromAddress: prefer config.emailFromAddress, fallback to env unless it's a webmail like gmail, default to commerciale@sititicino.ch
+    let fromAddress = (config?.emailFromAddress || "").trim();
+    if (!fromAddress) {
+      const envFrom = (process.env.EMAIL_FROM_ADDRESS || "").trim();
+      if (envFrom && !/@(gmail|googlemail|yahoo|hotmail|outlook)\.com$/i.test(envFrom)) {
+        fromAddress = envFrom;
+      } else {
+        fromAddress = "commerciale@sititicino.ch";
+      }
+    }
     const formattedFrom = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
-    const replyToAddress = (
+
+    // Resolve replyTo: strip any "mailto:" prefix
+    let rawReplyTo = (
+      config?.emailReplyTo ||
       process.env.EMAIL_REPLY_TO ||
       process.env.EMAIL_REPLY_TO_ADDRESS ||
-      config?.emailReplyTo ||
-      "rispondi@inbound.sititicino.ch"
+      "risposte@inbound.sititicino.ch"
     ).trim();
+    const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim();
 
     // If no API key is provided, safely simulate
     if (!apiKey) {
@@ -50,10 +63,11 @@ export default async function handler(req: any, res: any) {
       text: body,
       html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
     };
-    if (replyToAddress) {
-      payload.reply_to = replyToAddress;
+    if (cleanReplyTo) {
+      payload.reply_to = cleanReplyTo;
     }
 
+    // Direct POST /emails without any preliminary GET /domains
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -73,19 +87,17 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Resend returned an error (e.g. 401 invalid key, 403 onboarding restriction, 422 domain not verified)
-    let errorMsg = resData?.message || `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText || ""}`;
-
-    if (fromAddress === "onboarding@resend.dev" && (resendRes.status === 403 || errorMsg.toLowerCase().includes("testing email"))) {
-      errorMsg = `Resend: con l'indirizzo gratuito di test 'onboarding@resend.dev' puoi inviare solo all'indirizzo email con cui ti sei registrato su Resend. Per inviare a contatti esterni (come ${to}), verifica un dominio su https://resend.com/domains e configuralo in 'Configurazione'.`;
-    } else if (resendRes.status === 401) {
-      errorMsg = "Resend API Key non valida o revocata. Verifica la chiave inserita in 'Configurazione'.";
-    }
+    // Return the exact error message from Resend without altering or hardcoding
+    const exactErrorMsg =
+      resData?.message ||
+      resData?.error ||
+      (typeof resData === "string" ? resData : "") ||
+      `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText || ""}`;
 
     return res.status(200).json({
       success: false,
       simulated: false,
-      error: errorMsg,
+      error: exactErrorMsg,
     });
   } catch (err: any) {
     console.error("[api/send-email] Errore imprevisto:", err);

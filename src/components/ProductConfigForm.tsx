@@ -636,54 +636,58 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Mittente Email (From)
-              </label>
-              {serverStatus?.emailFromConfigured ? (
-                <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
-                  <span className="font-medium">Mittente: {serverStatus.emailFromDisplay || serverStatus.emailFromAddress} — configurato su Vercel</span>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    placeholder="Nome Mittente (es. Sales Agent)"
-                    value={formData.emailFromName || ''}
-                    onChange={(e) => setFormData({ ...formData, emailFromName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900 mb-1"
-                  />
-                  <input
-                    type="text"
-                    placeholder="noreply@sititicino.ch"
-                    value={formData.emailFromAddress || ''}
-                    onChange={(e) => setFormData({ ...formData, emailFromAddress: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Usa EMAIL_FROM_ADDRESS o onboarding@resend.dev come fallback se vuoto.</span>
-                </div>
-              )}
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-700">
+                  Mittente Email (From)
+                </label>
+                {serverStatus?.emailFromConfigured && (
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Server: {serverStatus.emailFromDisplay || serverStatus.emailFromAddress}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Nome Mittente (es. Commerciale)"
+                  value={formData.emailFromName || ''}
+                  onChange={(e) => setFormData({ ...formData, emailFromName: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900 mb-1"
+                />
+                <input
+                  type="text"
+                  placeholder="commerciale@sititicino.ch"
+                  value={formData.emailFromAddress || ''}
+                  onChange={(e) => setFormData({ ...formData, emailFromAddress: e.target.value.trim() })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Indirizzo mittente con dominio verificato su Resend (es. commerciale@sititicino.ch).
+                </span>
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                Indirizzo di Risposta (Reply-To)
-              </label>
-              {serverStatus?.emailReplyToConfigured ? (
-                <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
-                  <span className="font-medium">Reply-To: {serverStatus.emailReplyToAddress} — configurato su Vercel</span>
-                </div>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    placeholder="risposte@inbound.sititicino.ch"
-                    value={formData.emailReplyTo || ''}
-                    onChange={(e) => setFormData({ ...formData, emailReplyTo: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Indirizzo dove arrivano le risposte dei lead (dominio dedicato alla ricezione, diverso dal mittente).</span>
-                </>
-              )}
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-700">
+                  Indirizzo di Risposta (Reply-To)
+                </label>
+                {serverStatus?.emailReplyToConfigured && (
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Server: {serverStatus.emailReplyToAddress.replace(/^mailto:\s*/i, '')}
+                  </span>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="risposte@inbound.sititicino.ch"
+                value={(formData.emailReplyTo || '').replace(/^mailto:\s*/i, '')}
+                onChange={(e) => setFormData({ ...formData, emailReplyTo: e.target.value.replace(/^mailto:\s*/i, '').trim() })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Indirizzo dove arrivano le risposte dei lead (senza prefisso "mailto:", es. risposte@inbound.sititicino.ch).
+              </span>
             </div>
           </div>
         </div>

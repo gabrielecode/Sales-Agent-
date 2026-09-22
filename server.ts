@@ -425,10 +425,28 @@ async function sendEmailInternal(
   config?: any
 ): Promise<{ success: boolean; simulated: boolean; messageId?: string; error?: string }> {
   const apiKey = (process.env.RESEND_API_KEY || config?.resendApiKey || "").trim();
-  const fromName = (process.env.EMAIL_FROM_NAME || config?.emailFromName || "Sales Agent").trim();
-  const fromAddress = (process.env.EMAIL_FROM_ADDRESS || config?.emailFromAddress || "onboarding@resend.dev").trim();
+  const fromName = (config?.emailFromName || process.env.EMAIL_FROM_NAME || "Commerciale").trim();
+  
+  // Resolve fromAddress: prefer config.emailFromAddress, fallback to env unless it's a webmail like gmail, default to commerciale@sititicino.ch
+  let fromAddress = (config?.emailFromAddress || "").trim();
+  if (!fromAddress) {
+    const envFrom = (process.env.EMAIL_FROM_ADDRESS || "").trim();
+    if (envFrom && !/@(gmail|googlemail|yahoo|hotmail|outlook)\.com$/i.test(envFrom)) {
+      fromAddress = envFrom;
+    } else {
+      fromAddress = "commerciale@sititicino.ch";
+    }
+  }
   const formattedFrom = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
-  const replyToAddress = (process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || config?.emailReplyTo || "rispondi@inbound.sititicino.ch").trim();
+
+  // Resolve replyTo: strip any "mailto:" prefix
+  let rawReplyTo = (
+    config?.emailReplyTo ||
+    process.env.EMAIL_REPLY_TO ||
+    process.env.EMAIL_REPLY_TO_ADDRESS ||
+    "risposte@inbound.sititicino.ch"
+  ).trim();
+  const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim();
 
   if (!apiKey) {
     return {
@@ -446,10 +464,11 @@ async function sendEmailInternal(
       text: body,
       html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
     };
-    if (replyToAddress) {
-      payload.reply_to = replyToAddress;
+    if (cleanReplyTo) {
+      payload.reply_to = cleanReplyTo;
     }
 
+    // Direct POST /emails without preliminary GET /domains
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -468,18 +487,16 @@ async function sendEmailInternal(
       };
     } else {
       const errData = (await resendRes.json().catch(() => ({}))) as any;
-      let errorMsg = errData?.message || `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText || ""}`;
-
-      if (fromAddress === "onboarding@resend.dev" && (resendRes.status === 403 || errorMsg.toLowerCase().includes("testing email"))) {
-        errorMsg = `Resend: per inviare a destinatari esterni (${to}) non è possibile usare l'indirizzo di test gratuito 'onboarding@resend.dev'. Verifica il tuo dominio su resend.com/domains e configuralo in 'Configurazione'.`;
-      } else if (resendRes.status === 401) {
-        errorMsg = "Resend API Key non valida o revocata. Controlla la chiave inserita in 'Configurazione'.";
-      }
+      const exactErrorMsg =
+        errData?.message ||
+        errData?.error ||
+        (typeof errData === "string" ? errData : "") ||
+        `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText || ""}`;
 
       return {
         success: false,
         simulated: false,
-        error: errorMsg,
+        error: exactErrorMsg,
       };
     }
   } catch (err: any) {
@@ -697,17 +714,25 @@ app.get(["/api/health", "/health"], async (req, res) => {
 app.get(["/api/config-status", "/config-status"], (req, res) => {
     const openRouterConfigured = Boolean(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim() !== "");
     const resendConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.trim() !== "");
-    const emailFromConfigured = Boolean(process.env.EMAIL_FROM_ADDRESS && process.env.EMAIL_FROM_ADDRESS.trim() !== "");
-    const emailReplyToConfigured = Boolean((process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS) && (process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "").trim() !== "");
+    const rawFrom = (process.env.EMAIL_FROM_ADDRESS || "").trim();
+    const isWebmail = /@(gmail|googlemail|yahoo|hotmail|outlook)\.com$/i.test(rawFrom);
+    const resolvedFrom = !rawFrom || isWebmail ? "commerciale@sititicino.ch" : rawFrom;
+    const emailFromConfigured = Boolean(rawFrom && !isWebmail);
+
+    const rawReplyTo = (process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "").trim();
+    const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim();
+    const emailReplyToConfigured = Boolean(cleanReplyTo !== "");
 
     res.json({
       openRouterConfigured,
       resendConfigured,
       emailFromConfigured,
-      emailFromAddress: process.env.EMAIL_FROM_ADDRESS || "",
-      emailFromDisplay: process.env.EMAIL_FROM_NAME ? `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM_ADDRESS || 'onboarding@resend.dev'}>` : (process.env.EMAIL_FROM_ADDRESS || ""),
+      emailFromAddress: resolvedFrom,
+      emailFromDisplay: process.env.EMAIL_FROM_NAME
+        ? `${process.env.EMAIL_FROM_NAME} <${resolvedFrom}>`
+        : resolvedFrom,
       emailReplyToConfigured,
-      emailReplyToAddress: process.env.EMAIL_REPLY_TO || process.env.EMAIL_REPLY_TO_ADDRESS || "",
+      emailReplyToAddress: cleanReplyTo || "risposte@inbound.sititicino.ch",
     });
   });
 
