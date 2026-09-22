@@ -11,6 +11,10 @@ export default function handler(req: any, res: any) {
     res.once("finish", () => resolve(undefined));
     res.once("close", () => resolve(undefined));
 
+    if (req.body && typeof req.body === "object") {
+      (req as any)._body = true;
+    }
+
     try {
       (app as any)(req, res, (err: any) => {
         if (err) {

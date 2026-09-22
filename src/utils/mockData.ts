@@ -43,7 +43,7 @@ export const DEFAULT_CONFIG: ProductConfig = {
   platforms: ['Etsy', 'Amazon KDP', 'Shopify', 'Web'],
   languages: ['it', 'de', 'fr', 'en'],
   minLeadScore: 65,
-  dailyOutreachLimit: 25,
+  dailyOutreachLimit: 100,
   autoOutreach: false,
   emailFromName: 'Sales Agent',
   emailFromAddress: '',

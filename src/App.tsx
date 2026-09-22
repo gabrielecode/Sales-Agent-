@@ -36,7 +36,13 @@ export default function App() {
   const [config, setConfig] = useState<ProductConfig>(() => {
     try {
       const saved = localStorage.getItem('AFFILIATE_AGENT_CONFIG');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.dailyOutreachLimit || parsed.dailyOutreachLimit === 25) {
+          parsed.dailyOutreachLimit = 100;
+        }
+        return parsed;
+      }
     } catch (e) {}
     return DEFAULT_CONFIG;
   });

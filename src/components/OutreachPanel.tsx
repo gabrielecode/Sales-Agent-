@@ -125,7 +125,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
     setDailySent(getDailySentCount());
   }, []);
 
-  const dailyLimit = config.dailyOutreachLimit || 25;
+  const dailyLimit = config.dailyOutreachLimit || 100;
   const remainingQuota = Math.max(0, dailyLimit - dailySent);
 
   // Filter out candidates
@@ -211,7 +211,8 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
 
     const succeededIds: string[] = [];
     const errors: { shopName: string; email: string; error: string }[] = [];
-    let isAllSimulated = true;
+    const hasResendConfigured = Boolean(config.resendApiKey && config.resendApiKey.trim() !== "");
+    let isAllSimulated = !hasResendConfigured;
 
     try {
       for (let i = 0; i < batchToSend.length; i++) {
@@ -482,9 +483,13 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
                     : `${sendReport.succeeded} inviate, ${sendReport.failed} fallite`}
                 </span>
                 <span className="ml-1.5 text-slate-600">
-                  {sendReport.simulated
-                    ? '(Modalità test simulata: configura Resend API Key per spedizione reale)'
-                    : '(Spedito realmente via Resend API)'}
+                  {sendReport.succeeded > 0
+                    ? sendReport.simulated
+                      ? '(Modalità test simulata)'
+                      : '(Spedito con successo via Resend API)'
+                    : Boolean(config.resendApiKey)
+                    ? '(Invio reale via Resend non riuscito: consulta i dettagli degli errori)'
+                    : '(Modalità simulata)'}
                 </span>
                 {sendReport.failed > 0 && (
                   <p className="mt-1 text-slate-600">

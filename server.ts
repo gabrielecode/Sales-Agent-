@@ -468,7 +468,14 @@ async function sendEmailInternal(
       };
     } else {
       const errData = (await resendRes.json().catch(() => ({}))) as any;
-      const errorMsg = errData?.message || `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText}`;
+      let errorMsg = errData?.message || `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText || ""}`;
+
+      if (fromAddress === "onboarding@resend.dev" && (resendRes.status === 403 || errorMsg.toLowerCase().includes("testing email"))) {
+        errorMsg = `Resend: per inviare a destinatari esterni (${to}) non è possibile usare l'indirizzo di test gratuito 'onboarding@resend.dev'. Verifica il tuo dominio su resend.com/domains e configuralo in 'Configurazione'.`;
+      } else if (resendRes.status === 401) {
+        errorMsg = "Resend API Key non valida o revocata. Controlla la chiave inserita in 'Configurazione'.";
+      }
+
       return {
         success: false,
         simulated: false,
@@ -486,6 +493,13 @@ async function sendEmailInternal(
 
 const app = express();
 const PORT = 3000;
+
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === "object") {
+    (req as any)._body = true;
+  }
+  next();
+});
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -999,7 +1013,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
       }
 
       const minScore = typeof config.minLeadScore === "number" ? config.minLeadScore : 65;
-      const dailyLimit = typeof config.dailyOutreachLimit === "number" ? config.dailyOutreachLimit : 25;
+      const dailyLimit = typeof config.dailyOutreachLimit === "number" ? config.dailyOutreachLimit : 100;
       const alreadySentToday = typeof dailySentCount === "number" ? dailySentCount : 0;
       const availableSlots = Math.max(0, dailyLimit - alreadySentToday);
 

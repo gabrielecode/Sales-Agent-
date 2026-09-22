@@ -549,8 +549,8 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                   type="number"
                   min={1}
                   max={500}
-                  value={formData.dailyOutreachLimit || 25}
-                  onChange={(e) => setFormData({ ...formData, dailyOutreachLimit: Math.max(1, parseInt(e.target.value) || 25) })}
+                  value={formData.dailyOutreachLimit || 100}
+                  onChange={(e) => setFormData({ ...formData, dailyOutreachLimit: Math.max(1, parseInt(e.target.value) || 100) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
                 />
                 <span className="text-[10px] text-slate-400 mt-0.5 block">Blocca l'invio al superamento della quota odierna.</span>

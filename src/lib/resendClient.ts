@@ -37,10 +37,20 @@ export async function sendOutreachEmail(params: {
       };
     } else {
       const errData = await res.json().catch(() => ({}));
+      let msg = errData?.error || errData?.message;
+      if (!msg) {
+        if (res.status === 500) {
+          msg = "Errore interno server (HTTP 500).";
+        } else if (res.status === 404) {
+          msg = "Endpoint /api/send-email non trovato (HTTP 404).";
+        } else {
+          msg = `Errore HTTP ${res.status}${res.statusText ? `: ${res.statusText}` : ''}`;
+        }
+      }
       return {
         success: false,
         simulated: false,
-        error: errData.error || `Errore HTTP ${res.status}: ${res.statusText}`,
+        error: msg,
       };
     }
   } catch (err: any) {
