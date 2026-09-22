@@ -437,16 +437,17 @@ async function sendEmailInternal(
       fromAddress = "commerciale@sititicino.ch";
     }
   }
+  fromAddress = fromAddress.replace(/^mailto:\s*/i, "").trim() || "commerciale@sititicino.ch";
   const formattedFrom = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
 
-  // Resolve replyTo: strip any "mailto:" prefix
+  // Resolve replyTo: strip any "mailto:" prefix, guaranteed pure email address
   let rawReplyTo = (
     config?.emailReplyTo ||
     process.env.EMAIL_REPLY_TO ||
     process.env.EMAIL_REPLY_TO_ADDRESS ||
     "risposte@inbound.sititicino.ch"
   ).trim();
-  const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim();
+  const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim() || "risposte@inbound.sititicino.ch";
 
   if (!apiKey) {
     return {
@@ -460,15 +461,13 @@ async function sendEmailInternal(
     const payload: any = {
       from: formattedFrom,
       to: [to],
+      reply_to: cleanReplyTo,
       subject,
       text: body,
       html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
     };
-    if (cleanReplyTo) {
-      payload.reply_to = cleanReplyTo;
-    }
 
-    // Direct POST /emails without preliminary GET /domains
+    // Direct POST /emails without any preliminary GET /domains
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -478,19 +477,19 @@ async function sendEmailInternal(
       body: JSON.stringify(payload),
     });
 
+    const resData = (await resendRes.json().catch(() => ({}))) as any;
+
     if (resendRes.ok) {
-      const data = (await resendRes.json()) as any;
       return {
         success: true,
         simulated: false,
-        messageId: data?.id,
+        messageId: resData?.id,
       };
     } else {
-      const errData = (await resendRes.json().catch(() => ({}))) as any;
       const exactErrorMsg =
-        errData?.message ||
-        errData?.error ||
-        (typeof errData === "string" ? errData : "") ||
+        resData?.message ||
+        resData?.error ||
+        (typeof resData === "string" ? resData : "") ||
         `Errore Resend HTTP ${resendRes.status}: ${resendRes.statusText || ""}`;
 
       return {

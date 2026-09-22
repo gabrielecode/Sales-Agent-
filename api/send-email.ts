@@ -36,16 +36,17 @@ export default async function handler(req: any, res: any) {
         fromAddress = "commerciale@sititicino.ch";
       }
     }
+    fromAddress = fromAddress.replace(/^mailto:\s*/i, "").trim() || "commerciale@sititicino.ch";
     const formattedFrom = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
 
-    // Resolve replyTo: strip any "mailto:" prefix
+    // Resolve replyTo: strip any "mailto:" prefix, guaranteed pure email address
     let rawReplyTo = (
       config?.emailReplyTo ||
       process.env.EMAIL_REPLY_TO ||
       process.env.EMAIL_REPLY_TO_ADDRESS ||
       "risposte@inbound.sititicino.ch"
     ).trim();
-    const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim();
+    const cleanReplyTo = rawReplyTo.replace(/^mailto:\s*/i, "").trim() || "risposte@inbound.sititicino.ch";
 
     // If no API key is provided, safely simulate
     if (!apiKey) {
@@ -59,13 +60,11 @@ export default async function handler(req: any, res: any) {
     const payload: any = {
       from: formattedFrom,
       to: [to],
+      reply_to: cleanReplyTo,
       subject,
       text: body,
       html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
     };
-    if (cleanReplyTo) {
-      payload.reply_to = cleanReplyTo;
-    }
 
     // Direct POST /emails without any preliminary GET /domains
     const resendRes = await fetch("https://api.resend.com/emails", {

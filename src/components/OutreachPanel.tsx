@@ -63,6 +63,16 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
   const [includeSuspiciousEmails, setIncludeSuspiciousEmails] = useState<boolean>(false);
   const [dailySent, setDailySent] = useState<number>(() => getDailySentCount());
   const [copied, setCopied] = useState<boolean>(false);
+  const [serverStatus, setServerStatus] = useState<{ resendConfigured?: boolean; emailFromAddress?: string; emailReplyToAddress?: string } | null>(null);
+  const [isSendingSingle, setIsSendingSingle] = useState<boolean>(false);
+  const [singleSendFeedback, setSingleSendFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/config-status')
+      .then((res) => res.json())
+      .then((data) => setServerStatus(data))
+      .catch(() => {});
+  }, []);
 
   // Autopilot State & Effects
   const [isAutopilotRunning, setIsAutopilotRunning] = useState<boolean>(false);
@@ -211,7 +221,10 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
 
     const succeededIds: string[] = [];
     const errors: { shopName: string; email: string; error: string }[] = [];
-    const hasResendConfigured = Boolean(config.resendApiKey && config.resendApiKey.trim() !== "");
+    const hasResendConfigured = Boolean(
+      (config.resendApiKey && config.resendApiKey.trim() !== "") ||
+      serverStatus?.resendConfigured
+    );
     let isAllSimulated = !hasResendConfigured;
 
     try {
@@ -235,7 +248,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
           errors.push({
             shopName: lead.shopName,
             email: lead.email!,
-            error: res.error || 'Errore durante la trasmissione email',
+            error: res.error || 'Errore durante la trasmissione email con Resend',
           });
         }
 
@@ -271,6 +284,54 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
     } finally {
       setIsSending(false);
       setSendProgress(null);
+    }
+  };
+
+  const handleSendCurrentLead = async () => {
+    if (!currentLead || !currentLead.email || isSendingSingle || isSending) return;
+    setSingleSendFeedback(null);
+
+    const currentRemaining = getRemainingDailyQuota(dailyLimit);
+    if (currentRemaining <= 0) {
+      setSingleSendFeedback({
+        success: false,
+        message: `Quota giornaliera esaurita (${dailyLimit} email inviate oggi).`,
+      });
+      return;
+    }
+
+    setIsSendingSingle(true);
+    try {
+      const res = await sendOutreachEmail({
+        to: currentLead.email,
+        subject: currentLead.message?.subject || `Collaborazione con ${config.productName}`,
+        body: currentLead.message?.body || `Buongiorno ${currentLead.shopName}, vorremmo proporre una collaborazione commerciale.`,
+        config,
+      });
+
+      if (res.success) {
+        const newTotal = recordDailySentCount(1);
+        setDailySent(newTotal);
+        onSendMessages([currentLead.id]);
+        setSingleSendFeedback({
+          success: true,
+          message: res.simulated
+            ? 'Email inviata con successo in modalità simulata.'
+            : `Email inviata con successo via Resend${res.messageId ? ` (ID: ${res.messageId})` : ''}!`,
+        });
+      } else {
+        setSingleSendFeedback({
+          success: false,
+          message: res.error || 'Errore durante la trasmissione email con Resend.',
+        });
+      }
+    } catch (err: any) {
+      setSingleSendFeedback({
+        success: false,
+        message: err?.message || 'Errore imprevisto durante l\'invio.',
+      });
+    } finally {
+      setIsSendingSingle(false);
     }
   };
 
@@ -491,7 +552,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
                     ? sendReport.simulated
                       ? '(Modalità test simulata)'
                       : '(Spedito con successo via Resend API)'
-                    : Boolean(config.resendApiKey)
+                    : (Boolean(config.resendApiKey) || serverStatus?.resendConfigured)
                     ? '(Invio reale via Resend non riuscito: consulta i dettagli degli errori)'
                     : '(Modalità simulata)'}
                 </span>
@@ -678,14 +739,54 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
                 <button
                   type="button"
                   onClick={handleGenerateMessageForCurrent}
-                  disabled={isGenerating || isSending}
+                  disabled={isGenerating || isSending || isSendingSingle}
                   className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   Rigenera con IA
                 </button>
+                <button
+                  type="button"
+                  onClick={handleSendCurrentLead}
+                  disabled={isGenerating || isSending || isSendingSingle || !currentLead.email}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
+                  title={currentLead.email ? `Invia subito questa email a ${currentLead.email}` : 'Nessun indirizzo email configurato per questo contatto'}
+                >
+                  {isSendingSingle ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isSendingSingle ? 'Invio in corso...' : 'Invia Email'}</span>
+                </button>
               </div>
             </div>
+
+            {singleSendFeedback && (
+              <div
+                className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2 shadow-2xs ${
+                  singleSendFeedback.success
+                    ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-900 border border-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {singleSendFeedback.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{singleSendFeedback.message}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSingleSendFeedback(null)}
+                  className="text-slate-400 hover:text-slate-700 text-[11px] font-medium cursor-pointer"
+                >
+                  Chiudi
+                </button>
+              </div>
+            )}
 
             {currentLead.message?.body && currentLead.message.body.includes('settore E-Commerce su Web') && (
               <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 shadow-2xs">
