@@ -1263,13 +1263,13 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   // 4. Autopilot Endpoint (/api/autopilot/run)
   app.post(["/api/autopilot/run", "/autopilot/run"], async (req, res) => {
     try {
-      const { leads, config, dailySentCount } = req.body || {};
+      const { leads, config, dailySentCount, forceRun } = req.body || {};
 
       if (!config) {
         return res.status(400).json({ error: "Configurazione prodotto mancante" });
       }
 
-      if (!config.autoOutreach) {
+      if (!config.autoOutreach && !forceRun) {
         return res.json({
           status: "skipped",
           message: "Autopilot disattivato nelle impostazioni.",

@@ -15,9 +15,10 @@ export interface AutopilotRunResult {
  */
 export async function executeAutopilotRun(
   leads: Lead[],
-  config: ProductConfig
+  config: ProductConfig,
+  forceRun: boolean = false
 ): Promise<AutopilotRunResult> {
-  if (!config.autoOutreach) {
+  if (!config.autoOutreach && !forceRun) {
     return {
       status: 'skipped',
       message: 'Autopilot disattivato nelle impostazioni.',
@@ -38,6 +39,7 @@ export async function executeAutopilotRun(
         leads,
         config,
         dailySentCount,
+        forceRun,
       }),
     });
 

@@ -747,6 +747,7 @@ export default function App() {
                   onUpdateLeadMessage={handleUpdateLeadMessage}
                   onSendMessages={handleSendMessages}
                   onUpdateLeadCategory={handleUpdateLeadCategory}
+                  onUpdateConfig={setConfig}
                   onLeadsUpdated={(updatedLeads) => {
                     setLeads((prev) =>
                       prev.map((l) => {

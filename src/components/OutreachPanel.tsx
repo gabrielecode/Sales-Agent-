@@ -35,6 +35,7 @@ interface OutreachPanelProps {
   onSendMessages: (leadIds: string[]) => void;
   onLeadsUpdated?: (updatedLeads: Lead[]) => void;
   onUpdateLeadCategory?: (leadId: string, category: string) => void;
+  onUpdateConfig?: (newConfig: ProductConfig) => void;
 }
 
 interface SendReport {
@@ -52,6 +53,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
   onSendMessages,
   onLeadsUpdated,
   onUpdateLeadCategory,
+  onUpdateConfig,
 }) => {
   const selectedLeads = leads.filter((l) => l.selected);
   const [activeLeadIndex, setActiveLeadIndex] = useState<number>(0);
@@ -86,7 +88,14 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
     setIsAutopilotRunning(true);
     setAutopilotResult(null);
     try {
-      const res = await executeAutopilotRun(leads, config);
+      // If manually triggered while disabled, turn it on
+      const effectiveConfig = !config.autoOutreach && onUpdateConfig
+        ? { ...config, autoOutreach: true }
+        : config;
+      if (!config.autoOutreach && onUpdateConfig) {
+        onUpdateConfig(effectiveConfig);
+      }
+      const res = await executeAutopilotRun(leads, effectiveConfig, true);
       setAutopilotResult(res);
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setLastRunAt(nowStr);
@@ -358,15 +367,35 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleRunAutopilotNow}
-          disabled={isAutopilotRunning}
-          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shrink-0"
-        >
-          <Sparkles className={`w-3.5 h-3.5 ${isAutopilotRunning ? 'animate-spin' : ''}`} />
-          {isAutopilotRunning ? 'Esecuzione Autopilot...' : 'Esegui Autopilot Ora'}
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <label className="flex items-center gap-2 cursor-pointer bg-white/10 hover:bg-white/15 px-3 py-2 rounded-xl transition border border-white/10 select-none">
+            <input
+              type="checkbox"
+              checked={Boolean(config.autoOutreach)}
+              onChange={(e) => {
+                const nextVal = e.target.checked;
+                if (onUpdateConfig) {
+                  onUpdateConfig({ ...config, autoOutreach: nextVal });
+                }
+              }}
+              className="sr-only peer"
+            />
+            <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+            <span className="text-xs font-semibold text-slate-200">
+              {config.autoOutreach ? 'Attivo' : 'Disattivato'}
+            </span>
+          </label>
+
+          <button
+            type="button"
+            onClick={handleRunAutopilotNow}
+            disabled={isAutopilotRunning}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shrink-0"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isAutopilotRunning ? 'animate-spin' : ''}`} />
+            {isAutopilotRunning ? 'Esecuzione Autopilot...' : 'Esegui Autopilot Ora'}
+          </button>
+        </div>
       </div>
 
       {autopilotResult && (
