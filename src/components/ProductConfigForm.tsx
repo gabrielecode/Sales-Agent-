@@ -96,7 +96,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
         body: JSON.stringify({
           apiKey: activeKey || undefined,
           testEmailTo: testRecipient || undefined,
-          fromName: formData.emailFromName || 'Commerciale',
+          fromName: formData.emailFromName || '',
         }),
       });
       const data = await res.json();
@@ -515,6 +515,22 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Problema Risolto (Pain Point specifico)
+              </label>
+              <input
+                type="text"
+                placeholder="es. Dispersione di tempo nella gestione manuale di richieste poco profilate"
+                value={formData.painPoint || ''}
+                onChange={(e) => setFormData({ ...formData, painPoint: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">
+                Frase breve sul problema specifico che il prodotto risolve. Se lasciata vuota, viene ricavata automaticamente dalla proposta di valore.
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Tipo Offerta</label>
@@ -920,9 +936,16 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               <div className="space-y-2">
                 <input
                   type="text"
-                  placeholder="Nome Mittente (es. Commerciale)"
+                  placeholder="Nome Mittente (es. Gabriele Ferri)"
                   value={formData.emailFromName || ''}
                   onChange={(e) => setFormData({ ...formData, emailFromName: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900 mb-1"
+                />
+                <input
+                  type="text"
+                  placeholder="Ruolo Mittente (opzionale, es. Responsabile partnership)"
+                  value={formData.emailSenderRole || formData.senderRole || ''}
+                  onChange={(e) => setFormData({ ...formData, emailSenderRole: e.target.value, senderRole: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900 mb-1"
                 />
                 <input
@@ -933,7 +956,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
                 />
                 <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  Indirizzo mittente con dominio verificato su Resend (es. commerciale@sititicino.ch).
+                  Indirizzo mittente con dominio verificato su Resend. La firma finale dell'email userà Nome e Ruolo se specificati.
                 </span>
               </div>
             </div>

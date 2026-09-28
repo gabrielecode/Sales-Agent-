@@ -4,6 +4,9 @@ import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import { generateLocalMessageFallback } from "./src/lib/messageFallback";
+import { validateGeneratedMessage } from "./src/lib/messageValidator";
+import { appendProgrammaticSignature } from "./src/lib/emailSignature";
+import { shouldIncludeLink } from "./src/lib/outreachLink";
 import { FunnelStage, IntentClassification } from "./src/types";
 
 dotenv.config();
@@ -55,6 +58,38 @@ interface InboundEmailEvent {
   intent: IntentClassification;
   reason?: string;
   receivedAt: string;
+}
+
+// Local in-memory buffer for inbound events (guarantees zero data loss and avoids polling errors if Supabase table is not provisioned)
+let inMemoryInboundEvents: InboundEmailEvent[] = [];
+let isSupabaseInboundAvailable: boolean | null = null;
+let lastSupabaseCheckTime = 0;
+
+async function checkSupabaseInboundAvailability(): Promise<boolean> {
+  if (!supabase) return false;
+  const now = Date.now();
+  // Cache check for 60 seconds
+  if (isSupabaseInboundAvailable !== null && now - lastSupabaseCheckTime < 60000) {
+    return isSupabaseInboundAvailable;
+  }
+
+  try {
+    const { error } = await supabase.from("inbound_events").select("id").limit(1);
+    lastSupabaseCheckTime = now;
+    if (error) {
+      if (isSupabaseInboundAvailable !== false) {
+        console.warn(`[Supabase Inbound] Tabella 'inbound_events' non disponibile (${error.message || error.code}). Utilizzo storage in-memory locale.`);
+      }
+      isSupabaseInboundAvailable = false;
+      return false;
+    }
+    isSupabaseInboundAvailable = true;
+    return true;
+  } catch {
+    lastSupabaseCheckTime = now;
+    isSupabaseInboundAvailable = false;
+    return false;
+  }
 }
 
 
@@ -170,28 +205,72 @@ Rispondi ESCLUSIVAMENTE con un JSON valido nel formato:
   return classifyTextLocally(text);
 }
 
+// Helpers for email content validation, signature handling, and greeting sanitization
+function getProductDataText(config: any): string {
+  const parts: string[] = [];
+  if (config?.productAnalysis?.valueProposition) {
+    parts.push(config.productAnalysis.valueProposition);
+  }
+  if (Array.isArray(config?.productAnalysis?.keyFeatures)) {
+    parts.push(...config.productAnalysis.keyFeatures);
+  }
+  if (config?.productAnalysis?.pricingHint) {
+    parts.push(config.productAnalysis.pricingHint);
+  }
+  if (config?.productDescription) {
+    parts.push(config.productDescription);
+  }
+  return parts.join(" ");
+}
+
+function stripModelSignature(body: string): string {
+  let cleaned = body.trim();
+  // Cut any trailing closing phrases or signatures after the CTA question mark
+  const lastQuestionIdx = cleaned.lastIndexOf("?");
+  if (lastQuestionIdx !== -1) {
+    const after = cleaned.slice(lastQuestionIdx + 1).trim();
+    if (after.length > 0) {
+      cleaned = cleaned.slice(0, lastQuestionIdx + 1).trim();
+    }
+  }
+  return cleaned;
+}
+
+function sanitizeGreeting(body: string, isInformal: boolean, contactName?: string): string {
+  const trimmed = body.trim();
+  const cName = (contactName || "").trim();
+  const expectedGreeting = cName
+    ? (isInformal ? `Ciao ${cName},` : `Buongiorno ${cName},`)
+    : (isInformal ? "Ciao," : "Buongiorno,");
+
+  // If contactName is missing, enforce strictly "Ciao," or "Buongiorno," without any invented name
+  if (!cName) {
+    const lines = trimmed.split("\n");
+    if (lines.length > 0) {
+      const firstLine = lines[0].trim();
+      if (/^(ciao|buongiorno|salve|gentile)\b/i.test(firstLine)) {
+        lines[0] = expectedGreeting;
+        return lines.join("\n");
+      }
+    }
+  }
+  return trimmed;
+}
+
 // Single helper for generating messages with FunnelStage awareness
 async function generateMessageInternal(
   lead: any,
   config: any,
   stage: FunnelStage = "awareness"
-): Promise<{ subject: string; body: string }> {
+): Promise<{ subject: string; body: string; generatedBy: "gemini" | "openrouter" | "fallback"; wordCount: number }> {
   const apiKey = (process.env.OPENROUTER_API_KEY || config?.openRouterApiKey || "").trim();
   const model = (config?.openRouterModel || "meta-llama/llama-3-8b-instruct:free").trim();
   const tone = lead.toneOfVoice || "Formale";
 
-  const stageAssets = config?.funnelAssets?.[stage] || [];
-  const stageAssetsText =
-    stageAssets.length > 0
-      ? `Asset reali disponibili per lo stadio ${stage.toUpperCase()}:\n- ` + stageAssets.join("\n- ")
-      : "Nessun asset personalizzato registrato (cita una risorsa autorevole e specifica per questo settore).";
-
-  const offerType = config?.offerType || config?.productAnalysis?.offerType || "affiliate";
-  const isDigitalOrSoftware = offerType === "digital_product" || offerType === "software";
   const targetUrl = (config?.productUrl || config?.productAnalysis?.sourceUrl || "https://swissaffiliatebooster.ch").trim();
-  const productName = config?.productName || config?.productAnalysis?.productName || "Nostro Prodotto";
-  const valueProp = config?.productAnalysis?.valueProposition || config?.productDescription || "";
-  const keyFeatures = config?.productAnalysis?.keyFeatures || [];
+  const productName = (config?.productAnalysis?.productName || config?.productName || "Nostro Prodotto").trim();
+  const valueProp = (config?.productAnalysis?.valueProposition || config?.productDescription || "").trim();
+  const productDataText = getProductDataText(config);
 
   // Intelligently resolve the specific sector / merchandise category
   const rawInd = (lead.industry || "").trim();
@@ -225,14 +304,14 @@ async function generateMessageInternal(
       categoryClean = "Consulenza Aziendale, Fiscale & Fiduciaria";
     } else if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar)/i.test(ctx)) {
       categoryClean = "Alimentare & Enogastronomia";
-    } else if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazion)/i.test(ctx)) {
+    } else if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi|orolog)/i.test(ctx)) {
+      categoryClean = "Gioielli, Orologi & Bijoux";
+    } else if (/(\bart\b|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazion)/i.test(ctx)) {
       categoryClean = "Casa, Decorazioni & Arte";
     } else if (/(book|libri|editor|author|autore|guide|romanzo|kdp|racconti|fumetti)/i.test(ctx)) {
       categoryClean = "Editoria & Guide";
     } else if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|pelletteria)/i.test(ctx)) {
       categoryClean = "Moda, Abbigliamento & Accessori";
-    } else if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi|orolog)/i.test(ctx)) {
-      categoryClean = "Gioielli, Orologi & Bijoux";
     } else if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica)/i.test(ctx)) {
       categoryClean = "Casa, Arredamento & Design";
     } else if (/(beauty|bellezza|cosmet|skincare|creme|saponi|make-?up|profum|benessere)/i.test(ctx)) {
@@ -260,161 +339,303 @@ async function generateMessageInternal(
     platformLabel = isServiceOrCraft ? "sito web e attività sul territorio" : "presenza online e sito web";
   }
 
-  let stageGuideline = "";
-  if (stage === "awareness") {
-    stageGuideline = `STADIO DEL FUNNEL: AWARENESS (Primo Contatto & Sensibilizzazione).
-- Obiettivo: Condividere valore, educare e catturare l'attenzione sul problema risolto da ${productName}, senza alcuna pressione d'acquisto o vendita aggressiva.
-- CTA: Invita a consultare una risorsa gratuita, guida o analisi gratuita della landing page, integrando SEMPRE il link diretto: ${targetUrl}.
-${stageAssetsText}`;
-  } else if (stage === "evaluation") {
-    stageGuideline = `STADIO DEL FUNNEL: EVALUATION (Fase di Valutazione e Considerazione).
-- Obiettivo: Dimostrare ROI concreto, efficienza, funzionalità chiave (${keyFeatures.slice(0, 2).join(", ")}) e affidabilità della soluzione ${productName}.
-- CTA: Invita a guardare la demo interattiva, esplorare la proposta commerciale o consultare le specifiche a questo link: ${targetUrl}.
-${stageAssetsText}`;
-  } else {
-    stageGuideline = `STADIO DEL FUNNEL: PURCHASE (Fase di Chiusura & Attivazione).
-- Obiettivo: Agevolare la transizione finale all'acquisto, prova gratuita o attivazione partnership per ${productName}.
-- CTA: Proponi l'attivazione immediata dell'account o della prova gratuita/partnership tramite il link diretto: ${targetUrl}.
-${stageAssetsText}`;
+  const isFirstContact = stage === "awareness";
+  const includeLink = !isFirstContact || Boolean(config?.includeLinkInFirstContact);
+
+  // Build FATTI USABILI with ONLY verified non-empty fields
+  const fattiUsabili: string[] = [];
+  if (lead.shopName?.trim()) {
+    fattiUsabili.push(`Nome attività/insegna: "${lead.shopName.trim()}"`);
+  }
+  if (lead.contactName?.trim()) {
+    fattiUsabili.push(`Nome referente: "${lead.contactName.trim()}"`);
+  }
+  if (categoryClean?.trim()) {
+    fattiUsabili.push(`Settore o categoria merceologica: "${categoryClean.trim()}"`);
+  }
+  if (lead.platform?.trim()) {
+    fattiUsabili.push(`Piattaforma/Canale principale: "${platformLabel} (${lead.platform.trim()})"`);
+  }
+  if (lead.city?.trim() || lead.canton?.trim()) {
+    const loc = [lead.city?.trim(), lead.canton?.trim()].filter(Boolean).join(", ");
+    fattiUsabili.push(`Località: "${loc}"`);
+  }
+  if (lead.shortNotes?.trim()) {
+    fattiUsabili.push(`Note specifiche verificate: "${lead.shortNotes.trim()}"`);
+  }
+  if (lead.businessSignals) {
+    const bs = lead.businessSignals;
+    if (typeof bs.numProducts === "number" && bs.numProducts > 0) {
+      fattiUsabili.push(`Numero prodotti a catalogo: ${bs.numProducts}`);
+    }
+    if (typeof bs.numReviews === "number" && bs.numReviews > 0) {
+      fattiUsabili.push(`Numero recensioni clienti: ${bs.numReviews}`);
+    }
+    if (typeof bs.monthsActive === "number" && bs.monthsActive > 0) {
+      fattiUsabili.push(`Mesi di attività: ${bs.monthsActive}`);
+    }
+    if (bs.estimatedRevenue && typeof bs.estimatedRevenue === "string" && bs.estimatedRevenue.trim()) {
+      fattiUsabili.push(`Fatturato stimato: "${bs.estimatedRevenue.trim()}"`);
+    }
+  }
+  if (fattiUsabili.length === 0) {
+    fattiUsabili.push(`Settore: "${categoryClean || "Attività locale"}"`);
+    if (platformLabel) fattiUsabili.push(`Canale: "${platformLabel}"`);
+    if (lead.city) fattiUsabili.push(`Città: "${lead.city}"`);
   }
 
-  const systemPrompt = `Sei un copywriter d'élite specializzato in email outreach personalizzate B2B e Conversion Rate Optimization.
-Devi seguire RIGOROSAMENTE la formula di Copywriting: HOOK + BODY + CTA.
+  const fattiUsabiliText = fattiUsabili.join(" ");
 
-REGOLE TASSATIVE DI GENERAZIONE:
-1. INCLUSIONE LINK OBBLIGATORIA: Se tra i dati forniti è presente un URL o link (del prodotto, landing page o risorsa), DEVI inserirlo SEMPRE nella Call to Action finale o nel corpo dell'email come collegamento cliccabile coerente col testo (${targetUrl}). NON omettere mai il link.
-2. ADATTAMENTO FUNNEL:
-   - Awareness: Inserisci il link presentandolo come risorsa di approfondimento, guida o analisi gratuita (NON omettere mai il link).
-   - Consideration / Decision / Evaluation: Inserisci il link diretto alla pagina del prodotto o alla proposta commerciale.
-   - Purchase / Chiusura: Inserisci il link diretto per l'attivazione immediata o la pagina di onboarding.
-3. TONO DI VOCE: Scrivi l'email usando il tono di voce indicato (${tone}):
-   - Se 'Informale': usa un tono diretto e cordiale tra pari del settore (Tu / Ciao).
-   - Se 'Formale': usa un registro professionale e rispettoso (Lei / Buongiorno / Gentile).
-4. HOOK (GANCIO) & CATEGORIA MERCEOLOGICA:
-   - Inizia SEMPRE con un Hook iper-personalizzato citando esplicitamente la reale categoria merceologica del destinatario: "${categoryClean}" e il suo canale "${platformLabel}".
-   - DIVIETO ASSOLUTO: È SEVERAMENTE VIETATO usare la frase generica "seguo con vivo interesse i vostri risultati nel settore E-Commerce su Web" o la formula "su Web". E-Commerce non è una categoria merceologica; menziona sempre la reale merceologia ("${categoryClean}") e contestualizza in modo naturale (es. "sul vostro ${platformLabel}").
-5. BODY (CORPO): Continua con il Corpo incentrato sui dati reali e specifici del prodotto (Proposta di Valore e Caratteristiche Chiave estratte dall'analisi), allineato allo stadio del funnel:
-${stageGuideline}
-6. ANTI-SPAM & DELIVERABILITY: Evita parole da spam come 'Compra ora', 'Offertissima', punti esclamativi multipli o formule aggressive di vendita.
+  const systemPrompt = `Sei un copywriter B2B senior specializzato in cold email outreach brevi, specifiche e ad altissima risposta.
+Le tue email NON devono mai sembrare newsletter, brochure o messaggi promozionali generici, ma comunicazioni personali dirette tra due professionisti.
 
-Rispondi ESCLUSIVAMENTE in formato JSON puro:
-{"subject": "...", "body": "..."}
-È severamente vietato generare codice (TypeScript, JavaScript, HTML), note sviluppatore o spiegazioni tecniche.`;
+STRUTTURA TASSATIVA DELL'EMAIL:
+Scrivi in pura prosa (NO elenchi puntati o numerati, NO testo in grassetto, NO emoji), articolata esattamente in 4 blocchi consecutivi separati da riga vuota:
+1. OSSERVAZIONE (esattamente 1 frase): un fatto reale del lead, ricavato solo ed esclusivamente dalla lista "FATTI USABILI". È severamente vietato inventare numeri, fatturati, dipendenti o problemi inesistenti. Se non sono disponibili dettagli specifici, limitati a: categoria merceologica reale + città + canale, senza complimenti né formule adulatorie.
+2. PROBLEMA O COSTO (esattamente 1 frase): un problema reale o un costo nascosto specifico per la tipologia di attività del lead.
+3. SOLUZIONE (1 o 2 frasi): espressa come beneficio concreto e tangibile per il lead, MAI come elenco di funzionalità.
+4. CALL TO ACTION (CTA, esattamente 1 frase): una sola domanda sì/no a bassissima frizione per verificare l'interesse (proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti).
 
-  let analysisText = "";
-  if (config?.productAnalysis) {
-    analysisText = `\nDATI ESTRATTI DALL'ANALISI DELLA LANDING PAGE (${config.productAnalysis.sourceUrl || targetUrl}):
+SALUTO:
+- Se lead.contactName è presente nei FATTI USABILI, usa "Ciao [Nome]," per tono Informale, "Buongiorno [Nome]," per tono Formale.
+- Se lead.contactName MANCA, usa ESCLUSIVAMENTE "Ciao," (informale) o "Buongiorno," (formale), senza mai inventare nomi di persona, cognomi o formule fantasiose (vietato inventare nomi, vietato "Gentile titolare").
+
+FIRMA:
+- Il modello non deve MAI scrivere firma, nome o ruolo.
+- L'output dell'email deve terminare rigorosamente con la domanda della Call To Action (il punto interrogativo '?').
+- NON aggiungere saluti finali o firme: la firma viene inserita automaticamente dal software via codice.
+
+OFFERTE E FATTI:
+- Non inventare offerte, prove gratuite, durate, sconti o risultati. Se non sono nei dati, proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti.
+- Non citare prove gratuite, sconti, prezzi, garanzie o numeri a meno che non compaiano espressamente nei dati del prodotto.
+
+PRODOTTO:
+- Il prodotto descritto deve essere solo ed esclusivamente quello di productName + valueProposition fornito. Non aggiungere funzionalità o casi d'uso non presenti nell'analisi.
+
+VINCOLI FORMALI:
+- LUNGHEZZA: Body massimo 90 parole.
+- OGGETTO: da 3 a 6 parole, rigorosamente tutto minuscolo, specifico e coerente col lead.
+- PUNTEGGIATURA: esattamente un solo punto interrogativo ("?") in tutta l'email (nella CTA finale). Nessun punto esclamativo multiplo.
+- FORMATO: Nessun elenco. Nessun grassetto. Nessuna emoji.
+- LINK: ${includeLink ? `Includi il link in modo sobrio ed elegante (${targetUrl}).` : `NON inserire alcun link o URL nel corpo né nella CTA (primo contatto a freddo).`}
+- TERMINI E FORMULE VIETATE:
+  - "seguo con vivo interesse"
+  - "eccellenza"
+  - "siamo lieti", "siamo entusiasti", "ho il piacere di"
+  - "soluzione innovativa"
+  - "a completa disposizione"
+  - "approfondimento"
+  - "compra ora", "offertissima", "guadagni facili"
+  - MAIUSCOLE enfatiche
+  - Non parlare di "condizioni concordate" se il lead non ha mai risposto prima
+
+ESEMPI DI RIFERIMENTO:
+Gli esempi mostrano SOLO la struttura e la lunghezza. Non copiare nessuna parola, dato o argomento: usa esclusivamente i FATTI USABILI e la proposta di valore del prodotto.
+
+ESEMPIO 1 (Tono: Informale):
+{
+  "subject": "[argomento specifico]",
+  "body": "Ciao,\n\nho visto la presenza di [NOME_ATTIVITÀ] su [PIATTAFORMA] e le [N_RECENSIONI] recensioni ricevute.\n\nMolte realtà del settore affrontano [PROBLEMA_SPECIFICO_DEL_SETTORE].\n\nCon [NOME_PRODOTTO] è possibile [BENEFICIO_DAL_PRODOTTO], migliorando la gestione quotidiana.\n\nTi andrebbe se ti inviassi una breve analisi con un paio di spunti dedicati alla tua attività?"
+}
+
+ESEMPIO 2 (Tono: Formale):
+{
+  "subject": "[argomento specifico a CITTÀ]",
+  "body": "Buongiorno,\n\nho notato la vostra realtà [NOME_ATTIVITÀ] attiva nel settore [SETTORE] a [CITTÀ].\n\nSpesso le imprese del comparto affrontano difficoltà legate a [PROBLEMA_SPECIFICO_DEL_SETTORE].\n\nLa soluzione [NOME_PRODOTTO] permette di [BENEFICIO_DAL_PRODOTTO], ottimizzando i processi operativi.\n\nAvrebbe senso una breve chiamata di 10 minuti giovedì per valutare insieme la fattibilità?"
+}
+
+RISPOSTA:
+Rispondi ESCLUSIVAMENTE con un JSON valido con le proprietà "subject" e "body":
+{"subject": "...", "body": "..."}`;
+
+  const contactGreetingRule = lead.contactName?.trim()
+    ? `Usa "${tone === "Informale" ? `Ciao ${lead.contactName.trim()},` : `Buongiorno ${lead.contactName.trim()},`}"`
+    : `Usa rigorosamente "${tone === "Informale" ? "Ciao," : "Buongiorno,"}" (non inventare nomi di persona!)`;
+
+  const userPrompt = `FATTI USABILI DEL LEAD:
+${fattiUsabili.map((f) => `- ${f}`).join("\n")}
+
+CONTESTO PRODOTTO:
 - Nome Prodotto: ${productName}
-- Proposta di Valore Unica: ${valueProp}
-- Caratteristiche e Punti di Forza: ${keyFeatures.join("; ")}
-- Target di Riferimento: ${config.productAnalysis.targetAudience || config?.targetAudience || "Operatori di settore"}
-- Pricing / Offerta: ${config.productAnalysis.pricingHint || "Condizioni dedicate"}
-- Tono del Prodotto: ${config.productAnalysis.tone || "Professionale"}`;
+- Proposta di Valore: ${valueProp || "Ottimizzazione processi e conversione commerciale"}
+- Link/URL: ${includeLink ? targetUrl : "NESSUN LINK (vietato nel primo contatto)"}
+
+PARAMETRI EMAIL:
+- Lingua da usare: ${lead.language || "it"}
+- Tono di voce: ${tone} (${tone === "Informale" ? "dai del Tu, approccio diretto" : "dai del Lei, approccio professionale"})
+- Stadio funnel: ${stage.toUpperCase()}
+- Saluto iniziale obbligatorio: ${contactGreetingRule}
+
+VINCOLI TASSATIVI:
+- PRODOTTO: Il prodotto descritto deve essere solo quello di productName + valueProposition. Non aggiungere funzionalità o casi d'uso non presenti nell'analisi.
+- OFFERTE E FATTI: Non inventare offerte, prove gratuite, durate, sconti o risultati. Se non sono nei dati, proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti.
+- SALUTO: Se lead.contactName manca, usa "Ciao," o "Buongiorno," senza inventare nomi.
+- FIRMA: Il modello non deve mai scrivere firma, nome o ruolo. L'output deve terminare con la domanda di CTA finale. La firma verrà aggiunta via codice.
+- STRUTTURA: 4 blocchi (Osservazione -> Problema -> Soluzione -> CTA con domanda singola), max 90 parole.
+- Rispondi solo in formato JSON con le chiavi "subject" e "body".`;
+
+  // Server-side DEBUG log (solo in sviluppo, NON in produzione)
+  if (process.env.NODE_ENV !== "production") {
+    console.log("\n==================== [DEBUG DEV: FATTI USABILI] ====================");
+    console.log(fattiUsabili.length > 0 ? fattiUsabili.map((f) => `- ${f}`).join("\n") : "(Nessun fatto usabile)");
+    console.log("====================================================================");
+    console.log("\n==================== [DEBUG DEV: USER PROMPT] ====================");
+    console.log(userPrompt);
+    console.log("==================================================================\n");
   }
 
-  const userPrompt = `Genera un'email di outreach altamente personalizzata per il seguente lead:
-- Destinatario: ${lead.shopName}
-- Piattaforma: ${lead.platform}
-- Categoria Merceologica / Settore: ${categoryClean}
-- Canale: ${platformLabel}
-- Tono di voce: ${tone}
-- Lingua: ${lead.language || "it"}
-- Località: ${lead.city || "Svizzera"} (${lead.canton || "CH"})
-- Note profilo: ${lead.shortNotes || ""}
-
-DATI DEL PRODOTTO DA PROMUOVERE:
-- Nome Prodotto: ${productName}
-- Link / URL OBBLIGATORIO da inserire nella CTA/Corpo: ${targetUrl}
-- Modello / Tipo Offerta: ${offerType}${isDigitalOrSoftware ? "" : ` (Commissione: ${config?.commissionRate || "20%"})`}
-- Descrizione / Proposta di Valore: ${valueProp || config?.productDescription || ""}
-- Target: ${config?.targetAudience || (isDigitalOrSoftware ? "Clienti / Utenti finali" : "B2B Partners")}${analysisText}
-
-IMPORTANTE:
-1. Usa la categoria merceologica "${categoryClean}" per personalizzare l'Hook di apertura.
-2. NON usare mai la formula stereotipata "settore E-Commerce su Web".
-3. Inserisci il link ${targetUrl} nella CTA!`;
-
-  // 1. Try Gemini API first (natively available in AI Studio)
+  // 1. Try Gemini API first (available natively in AI Studio)
   const gemini = getGemini();
   if (gemini) {
-    try {
-      const geminiRes = await withTimeout(
-        gemini.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: `${systemPrompt}\n\n${userPrompt}`,
-          config: {
-            responseMimeType: "application/json",
-          },
-        }),
-        25000,
-        "Gemini generateMessage"
-      );
-      const content = geminiRes.text || "";
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.subject && parsed.body) {
-          return {
-            subject: parsed.subject,
-            body: parsed.body,
-          };
+    let currentPrompt = userPrompt;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const geminiRes = await withTimeout(
+          gemini.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: currentPrompt,
+            config: {
+              systemInstruction: systemPrompt,
+              responseMimeType: "application/json",
+              temperature: 0.5,
+            },
+          }),
+          25000,
+          "Gemini generateMessage"
+        );
+        const content = geminiRes.text || "";
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.subject && parsed.body) {
+            let candidateBody = stripModelSignature(String(parsed.body));
+            candidateBody = sanitizeGreeting(candidateBody, tone === "Informale", lead.contactName);
+
+            const validation = validateGeneratedMessage(
+              { subject: String(parsed.subject).trim(), body: candidateBody },
+              {
+                stage,
+                includeLink,
+                allowedFactsText: fattiUsabiliText,
+                productDataText,
+                targetUrl: includeLink ? targetUrl : undefined,
+              }
+            );
+
+            if (validation.valid) {
+              const finalBody = appendProgrammaticSignature(candidateBody, config);
+              const wordCount = finalBody.split(/\s+/).filter(Boolean).length;
+              return {
+                subject: String(parsed.subject).trim(),
+                body: finalBody,
+                generatedBy: "gemini",
+                wordCount,
+              };
+            } else {
+              if (process.env.NODE_ENV !== "production") {
+                console.warn(`[DEBUG DEV: VALIDATORE GEMINI TENTATIVO ${attempt + 1} FALLITO]:`, validation.errors);
+              }
+              currentPrompt = `${userPrompt}\n\nATTENZIONE - ERRORE DI VALIDAZIONE:\nCorreggi i seguenti punti tassativi:\n${validation.errors.map((e) => `- ${e}`).join("\n")}\n\nRiscrivi l'email rispettando rigorosamente tutte le regole.`;
+            }
+          }
         }
+      } catch (geminiErr: any) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`[Gemini generateMessage] Non disponibile (${geminiErr?.message || geminiErr}), passaggio a provider successivo.`);
+        }
+        break;
       }
-    } catch (geminiErr: any) {
-      console.log(`[Gemini generateMessage] Non disponibile (${geminiErr?.message || geminiErr}), attivazione fallback immediato.`);
     }
   }
 
   // 2. Try OpenRouter if API key is provided
   if (apiKey) {
-    const controllerOpenRouter = new AbortController();
-    const timeoutOpenRouter = setTimeout(() => controllerOpenRouter.abort(), 6000);
-    try {
-      const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        signal: controllerOpenRouter.signal,
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://affiliate-sales-agent.local",
-          "X-Title": "Affiliate Sales Agent",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.7,
-        }),
-      });
-      clearTimeout(timeoutOpenRouter);
+    let currentPrompt = userPrompt;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controllerOpenRouter = new AbortController();
+      const timeoutOpenRouter = setTimeout(() => controllerOpenRouter.abort(), 10000);
+      try {
+        const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          signal: controllerOpenRouter.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://affiliate-sales-agent.local",
+            "X-Title": "Affiliate Sales Agent",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: currentPrompt },
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+          }),
+        });
+        clearTimeout(timeoutOpenRouter);
 
-      if (openRouterRes.ok) {
-        const data = (await openRouterRes.json()) as any;
-        const content = data.choices?.[0]?.message?.content || "";
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return {
-            subject: parsed.subject || `Opportunità per ${lead.shopName}`,
-            body: parsed.body || content,
-          };
-        } else if (content.trim()) {
-          return {
-            subject: `Opportunità per ${lead.shopName}`,
-            body: content,
-          };
+        if (openRouterRes.ok) {
+          const data = (await openRouterRes.json()) as any;
+          const content = data.choices?.[0]?.message?.content || "";
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.subject && parsed.body) {
+              let candidateBody = stripModelSignature(String(parsed.body));
+              candidateBody = sanitizeGreeting(candidateBody, tone === "Informale", lead.contactName);
+
+              const validation = validateGeneratedMessage(
+                { subject: String(parsed.subject).trim(), body: candidateBody },
+                {
+                  stage,
+                  includeLink,
+                  allowedFactsText: fattiUsabiliText,
+                  productDataText,
+                  targetUrl: includeLink ? targetUrl : undefined,
+                }
+              );
+
+              if (validation.valid) {
+                const finalBody = appendProgrammaticSignature(candidateBody, config);
+                const wordCount = finalBody.split(/\s+/).filter(Boolean).length;
+                return {
+                  subject: String(parsed.subject).trim(),
+                  body: finalBody,
+                  generatedBy: "openrouter",
+                  wordCount,
+                };
+              } else {
+                if (process.env.NODE_ENV !== "production") {
+                  console.warn(`[DEBUG DEV: VALIDATORE OPENROUTER TENTATIVO ${attempt + 1} FALLITO]:`, validation.errors);
+                }
+                currentPrompt = `${userPrompt}\n\nATTENZIONE - ERRORE DI VALIDAZIONE:\nCorreggi i seguenti punti tassativi:\n${validation.errors.map((e) => `- ${e}`).join("\n")}\n\nRiscrivi l'email rispettando rigorosamente tutte le regole.`;
+              }
+            }
+          }
         }
+      } catch (aiErr) {
+        clearTimeout(timeoutOpenRouter);
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("Chiamata OpenRouter fallita in generateMessageInternal, fallback:", aiErr);
+        }
+        break;
       }
-    } catch (aiErr) {
-      clearTimeout(timeoutOpenRouter);
-      console.warn("Chiamata OpenRouter fallita in generateMessageInternal, fallback:", aiErr);
     }
   }
 
-  // 3. Robust dynamic local fallback using the analyzed product data
-  return generateLocalMessageFallback(lead, config || { productName: "Nostro Prodotto" }, stage);
+  // 3. Fallback (guaranteed compliant)
+  const fallbackMsg = generateLocalMessageFallback(lead, config || { productName: "Nostro Prodotto" }, stage);
+  const fallbackBody = String(fallbackMsg.body || "").trim();
+  const fallbackSubject = String(fallbackMsg.subject || "").trim();
+  const wordCount = fallbackBody.split(/\s+/).filter(Boolean).length;
+  return {
+    subject: fallbackSubject,
+    body: fallbackBody,
+    generatedBy: "fallback",
+    wordCount,
+  };
 }
 
 // Single helper for dispatching email via Resend or Simulation
@@ -716,13 +937,17 @@ app.get(["/api", "/api/"], (req, res) => {
 });
 
 app.get(["/api/health", "/health"], async (req, res) => {
-  let inboundEventsCount = 0;
-  if (supabase) {
-    const { count, error } = await supabase
-      .from("inbound_events")
-      .select("*", { count: "exact", head: true });
-    if (!error && count !== null) {
-      inboundEventsCount = count;
+  let inboundEventsCount = inMemoryInboundEvents.length;
+  if (supabase && (await checkSupabaseInboundAvailability())) {
+    try {
+      const { count, error } = await supabase
+        .from("inbound_events")
+        .select("*", { count: "exact", head: true });
+      if (!error && count !== null) {
+        inboundEventsCount = count;
+      }
+    } catch {
+      // Fallback to in-memory count
     }
   }
   res.json({
@@ -1337,6 +1562,8 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
               subject: message.subject,
               body: message.body,
               sentAt: new Date().toISOString(),
+              generatedBy: message.generatedBy,
+              wordCount: message.wordCount,
             },
           };
           updatedLeads.push(updatedLead);
@@ -1404,23 +1631,33 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
         receivedAt: new Date().toISOString(),
       };
 
-      if (supabase) {
-        const { error } = await supabase.from("inbound_events").insert([
-          {
-            id: event.id,
-            from: event.from,
-            senderEmail: event.senderEmail,
-            to: event.to,
-            inReplyTo: event.inReplyTo,
-            subject: event.subject,
-            text: event.text,
-            intent: event.intent,
-            reason: event.reason,
-            receivedAt: event.receivedAt,
-          },
-        ]);
-        if (error) {
-          console.error("Errore inserimento Supabase inbound_events:", error);
+      // Always store in in-memory buffer first so no inbound event is ever lost
+      inMemoryInboundEvents.unshift(event);
+      if (inMemoryInboundEvents.length > 200) {
+        inMemoryInboundEvents = inMemoryInboundEvents.slice(0, 200);
+      }
+
+      if (supabase && (await checkSupabaseInboundAvailability())) {
+        try {
+          const { error } = await supabase.from("inbound_events").insert([
+            {
+              id: event.id,
+              from: event.from,
+              senderEmail: event.senderEmail,
+              to: event.to,
+              inReplyTo: event.inReplyTo,
+              subject: event.subject,
+              text: event.text,
+              intent: event.intent,
+              reason: event.reason,
+              receivedAt: event.receivedAt,
+            },
+          ]);
+          if (error) {
+            console.warn("[Supabase Inbound] Inserimento non riuscito, evento memorizzato in locale:", error.message || error);
+          }
+        } catch (dbErr: any) {
+          console.warn("[Supabase Inbound] Connessione DB fallita, evento memorizzato in locale:", dbErr?.message || dbErr);
         }
       }
 
@@ -1439,16 +1676,18 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
 
   // 6. Query pending inbound events (for frontend sync)
   app.get(["/api/webhooks/inbound-events", "/webhooks/inbound-events"], async (req, res) => {
-    let events: InboundEmailEvent[] = [];
-    if (supabase) {
-      const { data, error } = await supabase
-        .from("inbound_events")
-        .select("*")
-        .order("receivedAt", { ascending: false });
-      if (!error && data) {
-        events = data as InboundEmailEvent[];
-      } else if (error) {
-        console.error("Errore lettura Supabase inbound_events:", error);
+    let events: InboundEmailEvent[] = [...inMemoryInboundEvents];
+    if (supabase && (await checkSupabaseInboundAvailability())) {
+      try {
+        const { data, error } = await supabase
+          .from("inbound_events")
+          .select("*")
+          .order("receivedAt", { ascending: false });
+        if (!error && data) {
+          events = data as InboundEmailEvent[];
+        }
+      } catch {
+        // Fallback to in-memory events
       }
     }
     res.json({ events });
@@ -1457,15 +1696,28 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
   // 7. Clear or acknowledge inbound events
   app.post(["/api/webhooks/clear-inbound-events", "/webhooks/clear-inbound-events"], async (req, res) => {
     const { ids } = req.body || {};
-    let remaining = 0;
-    if (supabase) {
-      if (Array.isArray(ids) && ids.length > 0) {
-        await supabase.from("inbound_events").delete().in("id", ids);
-      } else {
-        await supabase.from("inbound_events").delete().neq("id", "");
+    if (Array.isArray(ids) && ids.length > 0) {
+      const idSet = new Set(ids);
+      inMemoryInboundEvents = inMemoryInboundEvents.filter((ev) => !idSet.has(ev.id));
+    } else {
+      inMemoryInboundEvents = [];
+    }
+
+    let remaining = inMemoryInboundEvents.length;
+    if (supabase && (await checkSupabaseInboundAvailability())) {
+      try {
+        if (Array.isArray(ids) && ids.length > 0) {
+          await supabase.from("inbound_events").delete().in("id", ids);
+        } else {
+          await supabase.from("inbound_events").delete().neq("id", "");
+        }
+        const { data } = await supabase.from("inbound_events").select("*");
+        if (data) {
+          remaining = data.length;
+        }
+      } catch {
+        // Fallback to in-memory count
       }
-      const { data } = await supabase.from("inbound_events").select("*");
-      remaining = data ? data.length : 0;
     }
     res.json({ success: true, remaining });
   });

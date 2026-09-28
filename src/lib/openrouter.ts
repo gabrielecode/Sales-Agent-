@@ -6,7 +6,7 @@ export async function generateOutreachMessageWithAI(
   lead: Lead,
   config: ProductConfig,
   forcedStage?: FunnelStage
-): Promise<{ subject: string; body: string }> {
+): Promise<{ subject: string; body: string; generatedBy?: 'gemini' | 'openrouter' | 'fallback'; wordCount?: number }> {
   const stage = forcedStage || getFunnelStage(lead);
 
   try {
@@ -21,9 +21,12 @@ export async function generateOutreachMessageWithAI(
     if (res.ok) {
       const data = await res.json();
       if (data && data.subject && data.body) {
+        const bodyStr = String(data.body).trim();
         return {
-          subject: data.subject,
-          body: data.body,
+          subject: String(data.subject).trim(),
+          body: bodyStr,
+          generatedBy: data.generatedBy || 'openrouter',
+          wordCount: typeof data.wordCount === 'number' ? data.wordCount : bodyStr.split(/\s+/).filter(Boolean).length,
         };
       }
     }
@@ -32,7 +35,14 @@ export async function generateOutreachMessageWithAI(
   }
 
   // Client-side fallback if network is interrupted or server returns invalid data
-  return generateLocalMessageFallback(lead, config, stage);
+  const fallback = generateLocalMessageFallback(lead, config, stage);
+  const fbBody = String(fallback.body || '').trim();
+  return {
+    subject: String(fallback.subject || '').trim(),
+    body: fbBody,
+    generatedBy: 'fallback',
+    wordCount: fbBody.split(/\s+/).filter(Boolean).length,
+  };
 }
 
 export async function classifyResponseWithAI(

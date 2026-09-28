@@ -36,6 +36,7 @@ export function getFunnelAssetsForOfferType(offerType?: OfferType) {
 export const DEFAULT_CONFIG: ProductConfig = {
   productName: 'Swiss Affiliate Booster',
   productDescription: 'Piattaforma di affiliazione e monetizzazione per creator ed e-commerce in Svizzera e nei mercati DACH / Europa.',
+  painPoint: 'Dispersione di tempo operativo nella gestione e monetizzazione dei canali di vendita',
   targetAudience: 'Creator Etsy, venditori Amazon KDP, e-commerce Shopify e digital store',
   offerType: 'affiliate',
   commissionRate: '30%',
@@ -45,7 +46,7 @@ export const DEFAULT_CONFIG: ProductConfig = {
   minLeadScore: 65,
   dailyOutreachLimit: 100,
   autoOutreach: false,
-  emailFromName: 'Commerciale',
+  emailFromName: '',
   emailFromAddress: 'commerciale@sititicino.ch',
   emailReplyTo: 'risposte@inbound.sititicino.ch',
   funnelAssets: getFunnelAssetsForOfferType('affiliate'),

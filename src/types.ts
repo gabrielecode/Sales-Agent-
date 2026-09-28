@@ -10,6 +10,7 @@ export type AppTab = 'config' | 'leads' | 'outreach' | 'responses' | 'dashboard'
 export interface ProductConfig {
   productName: string;
   productDescription: string;
+  painPoint?: string;
   targetAudience: string;
   targetMerchandiseCategory?: string;
   offerType: OfferType;
@@ -30,9 +31,13 @@ export interface ProductConfig {
   openRouterModel?: string;
   resendApiKey?: string;
   emailFromName?: string;
+  emailSenderRole?: string;
   emailFromAddress?: string;
   emailReplyTo?: string;
   productUrl?: string;
+  senderRole?: string;
+  includeLinkInFirstContact?: boolean;
+  followUpDays?: number[];
   productAnalysis?: {
     productName?: string;
     valueProposition: string;
@@ -59,6 +64,8 @@ export interface LeadMessage {
   generatedAt?: string;
   sentAt?: string;
   followUpScheduled?: string;
+  generatedBy?: 'gemini' | 'openrouter' | 'fallback';
+  wordCount?: number;
 }
 
 export interface LeadResponse {
@@ -78,6 +85,7 @@ export interface Lead {
   id: string;
   shopName: string;
   shopUrl: string;
+  contactName?: string;
   platform: Platform;
   language: Language;
   email?: string;

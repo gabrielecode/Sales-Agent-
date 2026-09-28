@@ -31,7 +31,13 @@ import {
 interface OutreachPanelProps {
   leads: Lead[];
   config: ProductConfig;
-  onUpdateLeadMessage: (leadId: string, subject: string, body: string) => void;
+  onUpdateLeadMessage: (
+    leadId: string,
+    subject: string,
+    body: string,
+    generatedBy?: 'gemini' | 'openrouter' | 'fallback',
+    wordCount?: number
+  ) => void;
   onSendMessages: (leadIds: string[]) => void;
   onLeadsUpdated?: (updatedLeads: Lead[]) => void;
   onUpdateLeadCategory?: (leadId: string, category: string) => void;
@@ -167,7 +173,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
     setIsGenerating(true);
     try {
       const res = await generateOutreachMessageWithAI(currentLead, config);
-      onUpdateLeadMessage(currentLead.id, res.subject, res.body);
+      onUpdateLeadMessage(currentLead.id, res.subject, res.body, res.generatedBy, res.wordCount);
     } finally {
       setIsGenerating(false);
     }
@@ -181,7 +187,7 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
         const lead = selectedLeads[i];
         if (forceRegenerate || !lead.message?.body) {
           const res = await generateOutreachMessageWithAI(lead, config);
-          onUpdateLeadMessage(lead.id, res.subject, res.body);
+          onUpdateLeadMessage(lead.id, res.subject, res.body, res.generatedBy, res.wordCount);
           // 350ms delay between sequential calls to prevent 429 rate limiting
           if (i < selectedLeads.length - 1) {
             await new Promise((resolve) => setTimeout(resolve, 350));
@@ -836,6 +842,15 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
                 >
                   Chiudi
                 </button>
+              </div>
+            )}
+
+            {(!config.emailFromName?.trim() || config.emailFromName.trim().toLowerCase() === 'commerciale') && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 text-xs shadow-2xs">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Avviso firma:</strong> Imposta nome e ruolo mittente in Setup
+                </span>
               </div>
             )}
 

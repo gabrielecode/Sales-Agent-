@@ -186,8 +186,12 @@ export function detectSectorSmart(
   if (/(honey|miele|alpi|food|cibo|vino|wine|olio|pasta|dolci|cioccolat|gourmet|caffè|caffe|bio|alimentar|panettone|formagg)/i.test(ctx)) {
     return 'Alimentare & Enogastronomia';
   }
-  // 18. Casa, Decorazioni & Arte
-  if (/(art|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazioni\s*casa)/i.test(ctx)) {
+  // Gioielli & Bijoux (priorità prima di arte/decorazioni per evitare che 'gioielli artigianali' scatti su arte)
+  if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi|gemme|orolog)/i.test(ctx)) {
+    return 'Gioielli, Orologi & Bijoux';
+  }
+  // Casa, Decorazioni & Arte (\bart\b con confine di parola per non matchare 'artigianale')
+  if (/(\bart\b|wall\s*art|stampe|poster|quadri|dipint|illustrazion|grafic|foto|decorazioni\s*casa)/i.test(ctx)) {
     return 'Casa, Decorazioni & Arte';
   }
   // 19. Editoria & Libri
@@ -197,10 +201,6 @@ export function detectSectorSmart(
   // 20. Moda & Accessori
   if (/(fashion|moda|accessori|borse|bags|abbigliamento|vestiti|scarpe|tessuti|sartoria|outfit|calzature|pelletteria)/i.test(ctx)) {
     return 'Moda, Abbigliamento & Accessori';
-  }
-  // 21. Gioielli & Bijoux
-  if (/(gioiell|jewel|bijoux|anelli|collane|orecchini|bracciali|preziosi|gemme|orolog)/i.test(ctx)) {
-    return 'Gioielli, Orologi & Bijoux';
   }
   // 22. Casa & Arredamento
   if (/(casa|home|arred|mobil|design|interior|lampade|candele|ceramica|cuscini)/i.test(ctx)) {

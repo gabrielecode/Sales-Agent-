@@ -164,7 +164,13 @@ export default function App() {
     setActiveTab('outreach');
   };
 
-  const handleUpdateLeadMessage = (id: string, subject: string, body: string) => {
+  const handleUpdateLeadMessage = (
+    id: string,
+    subject: string,
+    body: string,
+    generatedBy?: 'gemini' | 'openrouter' | 'fallback',
+    wordCount?: number
+  ) => {
     setLeads((prev) =>
       prev.map((l) =>
         l.id === id
@@ -175,6 +181,8 @@ export default function App() {
                 subject,
                 body,
                 generatedAt: new Date().toLocaleTimeString(),
+                generatedBy: generatedBy || l.message?.generatedBy,
+                wordCount: typeof wordCount === 'number' ? wordCount : body.trim().split(/\s+/).filter(Boolean).length,
               },
             }
           : l
