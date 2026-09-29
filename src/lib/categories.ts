@@ -237,3 +237,20 @@ export function detectSectorSmart(
 
   return 'Servizi & Imprese Locali';
 }
+
+export const CATEGORY_PROFESSION_MAP: Record<string, string> = {
+  'Pittura & Imbiancatura': 'pittori',
+  'Idraulica & Termoidraulica': 'idraulici',
+  'Elettricisti & Impianti Elettrici': 'elettricisti',
+  'Falegnameria & Serramenti': 'falegnami',
+  'Giardinaggio & Manutenzione Verde': 'giardinieri',
+  'Edilizia & Ristrutturazioni': 'muratori',
+  'Fabbri & Carpenteria Metallica': 'fabbri',
+  'Climatizzazione & Riscaldamento': 'installatori clima',
+  'Spazzacamini & Tetti': 'spazzacamini',
+  'Pulizie & Multiservizi': 'professionisti delle pulizie'
+};
+
+export function getProfessionPlural(category: string): string {
+  return CATEGORY_PROFESSION_MAP[category] || `professionisti del settore ${category}`;
+}

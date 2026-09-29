@@ -422,7 +422,7 @@ Scrivi esattamente in questo formato (no elenchi, no grassetto, no emoji):
 
 [Saluto iniziale, es. Buongiorno o Ciao, seguito eventualmente dal nome del referente]
 
-Per molti [Target] [PainPoint].
+[Target] spesso riscontrano che [PainPoint].
 
 [Nome Prodotto] [Beneficio in una frase].[Testo di prova gratuita se fornito, es. Offriamo una prova gratuita di 14 giorni.]
 
@@ -760,6 +760,9 @@ async function sendEmailInternal(
       subject,
       text: body,
       html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
+      headers: {
+        "List-Unsubscribe": `<mailto:${cleanReplyTo}?subject=STOP>`,
+      },
     };
 
     // Direct POST /emails without any preliminary GET /domains

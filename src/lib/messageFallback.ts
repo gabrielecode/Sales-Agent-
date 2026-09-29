@@ -1,6 +1,6 @@
 import { Lead, ProductConfig, FunnelStage, OfferType } from '../types';
 import { getFunnelStage } from './funnelStage';
-import { detectSectorSmart, isLocalOrServiceSector } from './categories';
+import { detectSectorSmart, isLocalOrServiceSector, getProfessionPlural } from './categories';
 import { validateGeneratedMessage } from './messageValidator';
 import { appendProgrammaticSignature } from './emailSignature';
 import { shouldIncludeLink } from './outreachLink';
@@ -115,16 +115,20 @@ function buildMinimalFallback(
   targetUrl: string
 ): { subject: string; body: string } {
   const contactName = lead.contactName?.trim();
-  const city = lead.city?.trim() || 'Ticino';
+  const rawCity = lead.city?.trim() || '';
+  const city = isCountryOrEmpty(rawCity) ? '' : rawCity;
 
   if (lang === 'en') {
     const greeting = contactName ? (isInformal ? `Hi ${contactName},` : `Hello ${contactName},`) : (isInformal ? 'Hi,' : 'Hello,');
-    const obs = `I noticed your business in the ${translateCategory(category, 'en')} sector in ${city}.`;
+    const obs = city 
+      ? `I noticed your business in the ${translateCategory(category, 'en')} sector in ${city}.`
+      : `I noticed your business in the ${translateCategory(category, 'en')} sector.`;
     const sol = `${productName} helps streamline commercial processes and free up productive time.`;
     const ctaQuestion = 'Would it make sense to send you a brief analysis with two practical takeaways?';
     const ctaBlock = includeLink && targetUrl ? `${ctaQuestion}\n${targetUrl}` : ctaQuestion;
+    const sub = city ? `insights for your business in ${city}` : `insights for your business`;
     return {
-      subject: sanitizeSubject(`insights for your business in ${city}`),
+      subject: sanitizeSubject(sub),
       body: `${greeting}\n\n${obs}\n\n${sol}\n\n${ctaBlock}`,
     };
   }
@@ -133,17 +137,22 @@ function buildMinimalFallback(
   const greeting = contactName
     ? (isInformal ? `Ciao ${contactName},` : `Buongiorno ${contactName},`)
     : (isInformal ? 'Ciao,' : 'Buongiorno,');
-  const obs = isInformal
-    ? `ho visto la tua presenza nel settore ${category} a ${city}.`
-    : `ho notato la vostra presenza nel settore ${category} a ${city}.`;
+  const obs = city
+    ? (isInformal
+      ? `ho visto la tua presenza nel settore ${category} a ${city}.`
+      : `ho notato la vostra presenza nel settore ${category} a ${city}.`)
+    : (isInformal
+      ? `ho visto la tua presenza nel settore ${category}.`
+      : `ho notato la vostra presenza nel settore ${category}.`);
   const sol = `${productName} aiuta a qualificare le opportunità e a semplificare la gestione operativa.`;
   const ctaQuestion = isInformal
     ? 'Ti andrebbe se ti mandassi una breve analisi con un paio di spunti pratici?'
     : 'Le andrebbe se le inviassi una breve analisi con un paio di spunti pratici?';
   const ctaBlock = includeLink && targetUrl ? `${ctaQuestion}\n${targetUrl}` : ctaQuestion;
 
+  const sub = city ? `ottimizzazione attività a ${city}` : `ottimizzazione della vostra attività`;
   return {
-    subject: sanitizeSubject(`ottimizzazione attività a ${city}`),
+    subject: sanitizeSubject(sub),
     body: `${greeting}\n\n${obs}\n\n${sol}\n\n${ctaBlock}`,
   };
 }
@@ -194,9 +203,15 @@ function buildAwarenessTemplate(
   } else {
     // Italian
     const p = (lead.platform || '').toLowerCase();
-    if (p.includes('etsy')) target = 'creatori su Etsy';
-    else if (p.includes('shopify')) target = 'negozi su Shopify';
-    else target = `attività nel settore ${category}`;
+    if (p.includes('etsy')) {
+      target = 'creatori su Etsy';
+    } else if (p.includes('shopify')) {
+      target = 'negozi su Shopify';
+    } else if (isLocalOrServiceSector(category)) {
+      target = getProfessionPlural(category);
+    } else {
+      target = `attività nel settore ${category}`;
+    }
   }
 
   // 3. Pain Point & Benefit
@@ -331,7 +346,8 @@ function buildAwarenessTemplate(
   } else if (lang === 'fr') {
     bodyBlock1 = `Pour de nombreux ${target}, ${pain}.`;
   } else {
-    bodyBlock1 = `Per molti ${target} ${pain}.`;
+    const capitalizedTarget = target.charAt(0).toUpperCase() + target.slice(1);
+    bodyBlock1 = `${capitalizedTarget} spesso riscontrano che ${pain}.`;
   }
 
   const finalBody = `${greeting}\n\n${bodyBlock1}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}\n\n${signatureLine}\n\n${stopLine}`;
