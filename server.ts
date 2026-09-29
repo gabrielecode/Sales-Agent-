@@ -208,6 +208,9 @@ Rispondi ESCLUSIVAMENTE con un JSON valido nel formato:
 // Helpers for email content validation, signature handling, and greeting sanitization
 function getProductDataText(config: any): string {
   const parts: string[] = [];
+  if (config?.productName) {
+    parts.push(config.productName);
+  }
   if (config?.productAnalysis?.valueProposition) {
     parts.push(config.productAnalysis.valueProposition);
   }
@@ -219,6 +222,12 @@ function getProductDataText(config: any): string {
   }
   if (config?.productDescription) {
     parts.push(config.productDescription);
+  }
+  if (config?.painPoint) {
+    parts.push(config.painPoint);
+  }
+  if (config?.freeTrialText) {
+    parts.push(config.freeTrialText);
   }
   return parts.join(" ");
 }
@@ -257,6 +266,17 @@ function sanitizeGreeting(body: string, isInformal: boolean, contactName?: strin
   return trimmed;
 }
 
+function isCountryOrEmpty(city?: string): boolean {
+  if (!city) return true;
+  const lower = city.trim().toLowerCase();
+  const countries = [
+    "svizzera", "suisse", "schweiz", "switzerland", "ch",
+    "italia", "italy", "it", "germany", "deutschland", "de",
+    "france", "fr"
+  ];
+  return countries.includes(lower);
+}
+
 // Single helper for generating messages with FunnelStage awareness
 async function generateMessageInternal(
   lead: any,
@@ -267,8 +287,14 @@ async function generateMessageInternal(
   const model = (config?.openRouterModel || "meta-llama/llama-3-8b-instruct:free").trim();
   const tone = lead.toneOfVoice || "Formale";
 
-  const targetUrl = (config?.productUrl || config?.productAnalysis?.sourceUrl || "https://swissaffiliatebooster.ch").trim();
-  const productName = (config?.productAnalysis?.productName || config?.productName || "Nostro Prodotto").trim();
+  const targetUrl = (config?.productUrl || config?.productAnalysis?.sourceUrl || "").trim();
+  const productName = (config?.productName || "").trim();
+  const emailFromName = (config?.emailFromName || "").trim();
+
+  if (!productName || !emailFromName) {
+    throw new Error("Configura nome prodotto e mittente prima di generare le email");
+  }
+
   const valueProp = (config?.productAnalysis?.valueProposition || config?.productDescription || "").trim();
   const productDataText = getProductDataText(config);
 
@@ -356,8 +382,9 @@ async function generateMessageInternal(
   if (lead.platform?.trim()) {
     fattiUsabili.push(`Piattaforma/Canale principale: "${platformLabel} (${lead.platform.trim()})"`);
   }
-  if (lead.city?.trim() || lead.canton?.trim()) {
-    const loc = [lead.city?.trim(), lead.canton?.trim()].filter(Boolean).join(", ");
+  const resolvedCity = isCountryOrEmpty(lead.city) ? "" : lead.city.trim();
+  if (resolvedCity || lead.canton?.trim()) {
+    const loc = [resolvedCity, lead.canton?.trim()].filter(Boolean).join(", ");
     fattiUsabili.push(`Località: "${loc}"`);
   }
   if (lead.shortNotes?.trim()) {
@@ -381,78 +408,86 @@ async function generateMessageInternal(
   if (fattiUsabili.length === 0) {
     fattiUsabili.push(`Settore: "${categoryClean || "Attività locale"}"`);
     if (platformLabel) fattiUsabili.push(`Canale: "${platformLabel}"`);
-    if (lead.city) fattiUsabili.push(`Città: "${lead.city}"`);
+    if (resolvedCity) fattiUsabili.push(`Città: "${resolvedCity}"`);
   }
 
   const fattiUsabiliText = fattiUsabili.join(" ");
 
-  const systemPrompt = `Sei un copywriter B2B senior specializzato in cold email outreach brevi, specifiche e ad altissima risposta.
+  const systemPrompt = stage === "awareness"
+    ? `Sei un copywriter B2B senior specializzato in cold email outreach brevi, specifiche e ad altissima risposta.
+Le tue email NON devono mai sembrare newsletter o brochure promozionali, ma comunicazioni personali dirette tra due professionisti.
+
+STRUTTURA TASSATIVA PER L'EMAIL DI PRIMO CONTATTO (AWARENESS):
+Scrivi esattamente in questo formato (no elenchi, no grassetto, no emoji):
+
+[Saluto iniziale, es. Buongiorno o Ciao, seguito eventualmente dal nome del referente]
+
+Per molti [Target] [PainPoint].
+
+[Nome Prodotto] [Beneficio in una frase].[Testo di prova gratuita se fornito, es. Offriamo una prova gratuita di 14 giorni.]
+
+Registrarsi è semplice, basta questo link:
+[URL Prodotto]
+
+Cordiali saluti,
+[Nome Mittente]
+[Nome Prodotto]
+
+Se non desiderate ricevere altre email, rispondete con STOP. (In inglese: If you do not wish to receive further emails, please reply with STOP. In tedesco/francese: Stop-line corrispondente)
+
+VINCOLI TASSATIVI:
+- Nessun punto interrogativo "?" nell'intera email (nessuna domanda o CTA a domanda per questo stage).
+- L'URL del prodotto deve essere posizionato esattamente su una riga separata subito dopo la riga d'invito.
+- La riga di disiscrizione con STOP è obbligatoria come ultima riga.
+- Lunghezza massima del corpo: 90 parole.
+- Oggetto dell'email: da 3 a 6 parole, tutto minuscolo, senza "gratis", senza esclamativi o maiuscole.
+- Rispondi ESCLUSIVAMENTE con un JSON valido: {"subject": "...", "body": "..."}`
+    : `Sei un copywriter B2B senior specializzato in cold email outreach brevi, specifiche e ad altissima risposta.
 Le tue email NON devono mai sembrare newsletter, brochure o messaggi promozionali generici, ma comunicazioni personali dirette tra due professionisti.
 
-STRUTTURA TASSATIVA DELL'EMAIL:
+STRUTTURA TASSATIVA DELL'EMAIL (EVALUATION / PURCHASE):
 Scrivi in pura prosa (NO elenchi puntati o numerati, NO testo in grassetto, NO emoji), articolata esattamente in 4 blocchi consecutivi separati da riga vuota:
-1. OSSERVAZIONE (esattamente 1 frase): un fatto reale del lead, ricavato solo ed esclusivamente dalla lista "FATTI USABILI". È severamente vietato inventare numeri, fatturati, dipendenti o problemi inesistenti. Se non sono disponibili dettagli specifici, limitati a: categoria merceologica reale + città + canale, senza complimenti né formule adulatorie.
+1. OSSERVAZIONE (esattamente 1 frase): un fatto reale del lead, ricavato solo ed esclusivamente dalla lista "FATTI USABILI". È severamente vietato inventare numeri, fatturati, dipendenti o problemi inesistenti.
 2. PROBLEMA O COSTO (esattamente 1 frase): un problema reale o un costo nascosto specifico per la tipologia di attività del lead.
 3. SOLUZIONE (1 o 2 frasi): espressa come beneficio concreto e tangibile per il lead, MAI come elenco di funzionalità.
-4. CALL TO ACTION (CTA, esattamente 1 frase): una sola domanda sì/no a bassissima frizione per verificare l'interesse (proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti).
+4. CALL TO ACTION (CTA, esattamente 1 frase): una sola domanda sì/no a bassissima frizione per verificare l'interesse.
+Se includi un link, posizionalo su una riga separata DOPO la domanda finale della CTA.
 
-SALUTO:
-- Se lead.contactName è presente nei FATTI USABILI, usa "Ciao [Nome]," per tono Informale, "Buongiorno [Nome]," per tono Formale.
-- Se lead.contactName MANCA, usa ESCLUSIVAMENTE "Ciao," (informale) o "Buongiorno," (formale), senza mai inventare nomi di persona, cognomi o formule fantasiose (vietato inventare nomi, vietato "Gentile titolare").
-
-FIRMA:
-- Il modello non deve MAI scrivere firma, nome o ruolo.
-- L'output dell'email deve terminare rigorosamente con la domanda della Call To Action (il punto interrogativo '?').
-- NON aggiungere saluti finali o firme: la firma viene inserita automaticamente dal software via codice.
-
-OFFERTE E FATTI:
-- Non inventare offerte, prove gratuite, durate, sconti o risultati. Se non sono nei dati, proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti.
-- Non citare prove gratuite, sconti, prezzi, garanzie o numeri a meno che non compaiano espressamente nei dati del prodotto.
-
-PRODOTTO:
-- Il prodotto descritto deve essere solo ed esclusivamente quello di productName + valueProposition fornito. Non aggiungere funzionalità o casi d'uso non presenti nell'analisi.
-
-VINCOLI FORMALI:
-- LUNGHEZZA: Body massimo 90 parole.
-- OGGETTO: da 3 a 6 parole, rigorosamente tutto minuscolo, specifico e coerente col lead.
-- PUNTEGGIATURA: esattamente un solo punto interrogativo ("?") in tutta l'email (nella CTA finale). Nessun punto esclamativo multiplo.
-- FORMATO: Nessun elenco. Nessun grassetto. Nessuna emoji.
-- LINK: ${includeLink ? `Includi il link in modo sobrio ed elegante (${targetUrl}).` : `NON inserire alcun link o URL nel corpo né nella CTA (primo contatto a freddo).`}
-- TERMINI E FORMULE VIETATE:
-  - "seguo con vivo interesse"
-  - "eccellenza"
-  - "siamo lieti", "siamo entusiasti", "ho il piacere di"
-  - "soluzione innovativa"
-  - "a completa disposizione"
-  - "approfondimento"
-  - "compra ora", "offertissima", "guadagni facili"
-  - MAIUSCOLE enfatiche
-  - Non parlare di "condizioni concordate" se il lead non ha mai risposto prima
-
-ESEMPI DI RIFERIMENTO:
-Gli esempi mostrano SOLO la struttura e la lunghezza. Non copiare nessuna parola, dato o argomento: usa esclusivamente i FATTI USABILI e la proposta di valore del prodotto.
-
-ESEMPIO 1 (Tono: Informale):
-{
-  "subject": "[argomento specifico]",
-  "body": "Ciao,\n\nho visto la presenza di [NOME_ATTIVITÀ] su [PIATTAFORMA] e le [N_RECENSIONI] recensioni ricevute.\n\nMolte realtà del settore affrontano [PROBLEMA_SPECIFICO_DEL_SETTORE].\n\nCon [NOME_PRODOTTO] è possibile [BENEFICIO_DAL_PRODOTTO], migliorando la gestione quotidiana.\n\nTi andrebbe se ti inviassi una breve analisi con un paio di spunti dedicati alla tua attività?"
-}
-
-ESEMPIO 2 (Tono: Formale):
-{
-  "subject": "[argomento specifico a CITTÀ]",
-  "body": "Buongiorno,\n\nho notato la vostra realtà [NOME_ATTIVITÀ] attiva nel settore [SETTORE] a [CITTÀ].\n\nSpesso le imprese del comparto affrontano difficoltà legate a [PROBLEMA_SPECIFICO_DEL_SETTORE].\n\nLa soluzione [NOME_PRODOTTO] permette di [BENEFICIO_DAL_PRODOTTO], ottimizzando i processi operativi.\n\nAvrebbe senso una breve chiamata di 10 minuti giovedì per valutare insieme la fattibilità?"
-}
-
-RISPOSTA:
-Rispondi ESCLUSIVAMENTE con un JSON valido con le proprietà "subject" e "body":
-{"subject": "...", "body": "..."}`;
+VINCOLI TASSATIVI:
+- Esattamente un solo punto interrogativo ("?") in tutto il corpo del messaggio (nella domanda finale).
+- L'URL del prodotto (se incluso) deve essere posizionato su una riga separata come ultima riga.
+- Lunghezza massima del corpo: 90 parole.
+- Oggetto dell'email: da 3 a 6 parole, tutto minuscolo, specifico e coerente col lead.
+- Rispondi ESCLUSIVAMENTE con un JSON valido: {"subject": "...", "body": "..."}`;
 
   const contactGreetingRule = lead.contactName?.trim()
     ? `Usa "${tone === "Informale" ? `Ciao ${lead.contactName.trim()},` : `Buongiorno ${lead.contactName.trim()},`}"`
     : `Usa rigorosamente "${tone === "Informale" ? "Ciao," : "Buongiorno,"}" (non inventare nomi di persona!)`;
 
-  const userPrompt = `FATTI USABILI DEL LEAD:
+  const freeTrialText = (config?.freeTrialText || "").trim();
+
+  const userPrompt = stage === "awareness"
+    ? `FATTI USABILI DEL LEAD:
+${fattiUsabili.map((f) => `- ${f}`).join("\n")}
+
+CONTESTO PRODOTTO:
+- Nome Prodotto: ${productName}
+- Proposta di Valore (Beneficio): ${valueProp || "Ottimizzazione processi e conversione commerciale"}
+- Problema specifico (Pain Point): ${config?.painPoint || "dispersione di tempo operativo nella gestione delle vendite"}
+- Testo Prova/Gratuità (se presente): ${freeTrialText || "(nessuno)"}
+- Link/URL: ${targetUrl}
+- Nome Mittente (da inserire in firma): ${config?.emailFromName || ""}
+
+PARAMETRI EMAIL:
+- Lingua da usare: ${lead.language || "it"}
+- Tono di voce: ${tone} (${tone === "Informale" ? "dai del Tu, approccio diretto" : "dai del Lei, approccio professionale"})
+- Saluto iniziale obbligatorio: ${contactGreetingRule}
+
+VINCOLI TASSATIVI:
+- STRUTTURA: Segui rigorosamente il template di primo contatto (saluto, problema/pain, beneficio/soluzione + prova se fornita, link su riga propria, firma Cordiali saluti, STOP line).
+- Nessun punto interrogativo "?" (niente domande).
+- Rispondi solo in formato JSON con le chiavi "subject" e "body".`
+    : `FATTI USABILI DEL LEAD:
 ${fattiUsabili.map((f) => `- ${f}`).join("\n")}
 
 CONTESTO PRODOTTO:
@@ -468,7 +503,7 @@ PARAMETRI EMAIL:
 
 VINCOLI TASSATIVI:
 - PRODOTTO: Il prodotto descritto deve essere solo quello di productName + valueProposition. Non aggiungere funzionalità o casi d'uso non presenti nell'analisi.
-- OFFERTE E FATTI: Non inventare offerte, prove gratuite, durate, sconti o risultati. Se non sono nei dati, proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti.
+- OFFERTE E FATTI: Non inventare offerte, sconti o risultati. Se non sono nei dati, proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti.
 - SALUTO: Se lead.contactName manca, usa "Ciao," o "Buongiorno," senza inventare nomi.
 - FIRMA: Il modello non deve mai scrivere firma, nome o ruolo. L'output deve terminare con la domanda di CTA finale. La firma verrà aggiunta via codice.
 - STRUTTURA: 4 blocchi (Osservazione -> Problema -> Soluzione -> CTA con domanda singola), max 90 parole.
@@ -482,6 +517,23 @@ VINCOLI TASSATIVI:
     console.log("\n==================== [DEBUG DEV: USER PROMPT] ====================");
     console.log(userPrompt);
     console.log("==================================================================\n");
+  }
+
+  // Se l'opzione useFixedAwarenessTemplate è attiva nello stage awareness, saltiamo l'AI
+  if (stage === "awareness" && config?.useFixedAwarenessTemplate) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[server.ts] Saltata generazione AI (useFixedAwarenessTemplate attivo)");
+    }
+    const fallbackMsg = generateLocalMessageFallback(lead, config || { productName: "Nostro Prodotto" }, stage);
+    const fallbackBody = String(fallbackMsg.body || "").trim();
+    const fallbackSubject = String(fallbackMsg.subject || "").trim();
+    const wordCount = fallbackBody.split(/\s+/).filter(Boolean).length;
+    return {
+      subject: fallbackSubject,
+      body: fallbackBody,
+      generatedBy: "fallback",
+      wordCount,
+    };
   }
 
   // 1. Try Gemini API first (available natively in AI Studio)
@@ -519,11 +571,13 @@ VINCOLI TASSATIVI:
                 allowedFactsText: fattiUsabiliText,
                 productDataText,
                 targetUrl: includeLink ? targetUrl : undefined,
+                productName,
+                emailFromName: config?.emailFromName || '',
               }
             );
 
             if (validation.valid) {
-              const finalBody = appendProgrammaticSignature(candidateBody, config);
+              const finalBody = stage === "awareness" ? candidateBody : appendProgrammaticSignature(candidateBody, config);
               const wordCount = finalBody.split(/\s+/).filter(Boolean).length;
               return {
                 subject: String(parsed.subject).trim(),
@@ -594,11 +648,13 @@ VINCOLI TASSATIVI:
                   allowedFactsText: fattiUsabiliText,
                   productDataText,
                   targetUrl: includeLink ? targetUrl : undefined,
+                  productName,
+                  emailFromName: config?.emailFromName || '',
                 }
               );
 
               if (validation.valid) {
-                const finalBody = appendProgrammaticSignature(candidateBody, config);
+                const finalBody = stage === "awareness" ? candidateBody : appendProgrammaticSignature(candidateBody, config);
                 const wordCount = finalBody.split(/\s+/).filter(Boolean).length;
                 return {
                   subject: String(parsed.subject).trim(),
@@ -1431,6 +1487,11 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
       const { lead, config, stage } = req.body || {};
       if (!lead) {
         return res.status(400).json({ error: "Dati del lead mancanti" });
+      }
+      const productName = (config?.productName || "").trim();
+      const emailFromName = (config?.emailFromName || "").trim();
+      if (!productName || !emailFromName) {
+        return res.status(400).json({ error: "Configura nome prodotto e mittente prima di generare le email" });
       }
       const message = await generateMessageInternal(lead, config, stage || "awareness");
       return res.json(message);

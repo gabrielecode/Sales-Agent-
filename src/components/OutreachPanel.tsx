@@ -845,14 +845,21 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
               </div>
             )}
 
-            {(!config.emailFromName?.trim() || config.emailFromName.trim().toLowerCase() === 'commerciale') && (
+            {(!config.productName?.trim() || !config.emailFromName?.trim()) ? (
+              <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl p-3 text-xs shadow-2xs">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>
+                  <strong>Errore di configurazione:</strong> Configura nome prodotto e mittente prima di generare le email.
+                </span>
+              </div>
+            ) : (!config.emailFromName?.trim() || config.emailFromName.trim().toLowerCase() === 'commerciale') ? (
               <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 text-xs shadow-2xs">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
                   <strong>Avviso firma:</strong> Imposta nome e ruolo mittente in Setup
                 </span>
               </div>
-            )}
+            ) : null}
 
             {currentLead.message?.body && currentLead.message.body.includes('settore E-Commerce su Web') && (
               <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 shadow-2xs">

@@ -6,8 +6,21 @@ export async function generateOutreachMessageWithAI(
   lead: Lead,
   config: ProductConfig,
   forcedStage?: FunnelStage
-): Promise<{ subject: string; body: string; generatedBy?: 'gemini' | 'openrouter' | 'fallback'; wordCount?: number }> {
+): Promise<{ subject: string; body: string; generatedBy?: 'gemini' | 'openrouter' | 'fallback'; wordCount?: number; error?: string }> {
   const stage = forcedStage || getFunnelStage(lead);
+
+  const productName = (config?.productName || '').trim();
+  const emailFromName = (config?.emailFromName || '').trim();
+
+  if (!productName || !emailFromName) {
+    return {
+      subject: "Errore di configurazione",
+      body: "Configura nome prodotto e mittente prima di generare le email",
+      error: "Configura nome prodotto e mittente prima di generare le email",
+      generatedBy: 'fallback',
+      wordCount: 0
+    };
+  }
 
   try {
     const res = await fetch('/api/generate-message', {

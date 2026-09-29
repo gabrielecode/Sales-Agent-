@@ -11,6 +11,8 @@ export interface ProductConfig {
   productName: string;
   productDescription: string;
   painPoint?: string;
+  freeTrialText?: string;
+  useFixedAwarenessTemplate?: boolean;
   targetAudience: string;
   targetMerchandiseCategory?: string;
   offerType: OfferType;

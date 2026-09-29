@@ -531,6 +531,37 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               </p>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Testo Prova/Gratuità (opzionale)
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. Offriamo una prova gratuita di 14 giorni"
+                  value={formData.freeTrialText || ''}
+                  onChange={(e) => setFormData({ ...formData, freeTrialText: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Se vuoto, non viene menzionata alcuna prova gratuita o gratuità.
+                </p>
+              </div>
+
+              <div className="flex items-center pt-5">
+                <input
+                  type="checkbox"
+                  id="useFixedAwarenessTemplate"
+                  checked={formData.useFixedAwarenessTemplate || false}
+                  onChange={(e) => setFormData({ ...formData, useFixedAwarenessTemplate: e.target.checked })}
+                  className="h-4 w-4 text-slate-900 focus:ring-slate-900 border-slate-300 rounded"
+                />
+                <label htmlFor="useFixedAwarenessTemplate" className="ml-2 text-xs font-medium text-slate-700">
+                  Usa sempre lo stesso testo per il primo contatto (saltando l'AI)
+                </label>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Tipo Offerta</label>
