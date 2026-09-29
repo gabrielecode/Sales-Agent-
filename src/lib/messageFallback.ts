@@ -100,7 +100,7 @@ function sanitizeSubject(sub: string): string {
     return words.slice(0, 5).join(' ');
   }
   if (words.length === 2) return `${words.join(' ')} dedicata`;
-  if (words.length === 1) return `opportunità per ${words[0]}`;
+  if (words.length === 1) return `soluzioni per ${words[0]}`;
   return 'informazioni per la vostra attività';
 }
 
@@ -144,7 +144,7 @@ function buildMinimalFallback(
     : (isInformal
       ? `ho visto la tua presenza nel settore ${category}.`
       : `ho notato la vostra presenza nel settore ${category}.`);
-  const sol = `${productName} aiuta a qualificare le opportunità e a semplificare la gestione operativa.`;
+  const sol = `${productName} aiuta a ottimizzare i processi commerciali e a semplificare la gestione operativa.`;
   const ctaQuestion = isInformal
     ? 'Ti andrebbe se ti mandassi una breve analisi con un paio di spunti pratici?'
     : 'Le andrebbe se le inviassi una breve analisi con un paio di spunti pratici?';
@@ -230,16 +230,6 @@ function buildAwarenessTemplate(
       pain = `la gestion quotidienne entraîne ${lowerPain}`;
     } else {
       pain = `la gestione quotidiana comporta ${lowerPain}`;
-    }
-  } else {
-    if (lang === 'en') {
-      pain = 'optimizing channels and sales requires too much manual effort';
-    } else if (lang === 'de') {
-      pain = 'erfordert die Verwaltung von Vertriebskanälen oft zu viel Aufwand';
-    } else if (lang === 'fr') {
-      pain = 'optimiser la gestion des ventes demande trop de temps';
-    } else {
-      pain = 'ottimizzare la gestione delle vendite richiede troppo tempo operativo';
     }
   }
 
@@ -339,18 +329,22 @@ function buildAwarenessTemplate(
   }
 
   let bodyBlock1 = '';
-  if (lang === 'en') {
-    bodyBlock1 = `For many ${target}, ${pain}.`;
-  } else if (lang === 'de') {
-    bodyBlock1 = `Für viele ${target} ${pain}.`;
-  } else if (lang === 'fr') {
-    bodyBlock1 = `Pour de nombreux ${target}, ${pain}.`;
-  } else {
-    const capitalizedTarget = target.charAt(0).toUpperCase() + target.slice(1);
-    bodyBlock1 = `${capitalizedTarget} spesso riscontrano che ${pain}.`;
+  if (pain) {
+    if (lang === 'en') {
+      bodyBlock1 = `For many ${target}, ${pain}.`;
+    } else if (lang === 'de') {
+      bodyBlock1 = `Für viele ${target} ${pain}.`;
+    } else if (lang === 'fr') {
+      bodyBlock1 = `Pour de nombreux ${target}, ${pain}.`;
+    } else {
+      const capitalizedTarget = target.charAt(0).toUpperCase() + target.slice(1);
+      bodyBlock1 = `${capitalizedTarget} spesso riscontrano che ${pain}.`;
+    }
   }
 
-  const finalBody = `${greeting}\n\n${bodyBlock1}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}\n\n${signatureLine}\n\n${stopLine}`;
+  const finalBody = bodyBlock1
+    ? `${greeting}\n\n${bodyBlock1}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}\n\n${signatureLine}\n\n${stopLine}`
+    : `${greeting}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}\n\n${signatureLine}\n\n${stopLine}`;
 
   return {
     subject,
@@ -422,6 +416,36 @@ export function generateLocalMessageFallback(
   // Se la lingua è italiana, possiamo usare la feature; per altre lingue omettila se non localizzata
   const primaryFeature = lang === 'it' && rawFeature ? rawFeature.toLowerCase() : '';
   const valueProp = ((config as any).productAnalysis?.valueProposition || config.productDescription || '').trim();
+
+  let benefit = '';
+  if (valueProp) {
+    let lowerProp = valueProp;
+    if (/^[A-ZÀ-ÖØ-Þ]/.test(valueProp) && !/^[A-Z]{2,}/.test(valueProp)) {
+      lowerProp = valueProp.charAt(0).toLowerCase() + valueProp.slice(1);
+    }
+    if (lowerProp.endsWith('.')) {
+      lowerProp = lowerProp.slice(0, -1);
+    }
+    if (lang === 'en') {
+      benefit = `helps you ${lowerProp}`;
+    } else if (lang === 'de') {
+      benefit = `hilft Ihnen dabei, ${lowerProp}`;
+    } else if (lang === 'fr') {
+      benefit = `vous aide à ${lowerProp}`;
+    } else {
+      benefit = isInformal ? `ti aiuta a ${lowerProp}` : `aiuta a ${lowerProp}`;
+    }
+  } else {
+    if (lang === 'en') {
+      benefit = 'streamlines your workflow and increases conversions';
+    } else if (lang === 'de') {
+      benefit = 'optimiert Ihre Arbeitsabläufe und steigert die Conversions';
+    } else if (lang === 'fr') {
+      benefit = 'optimise vos processus et augmente les ventes';
+    } else {
+      benefit = 'semplifica la gestione e aumenta i risultati commerciali';
+    }
+  }
 
   // Gestione Pain Point specifico: se esiste, usa SOLO questo; altrimenti ometti il blocco problema
   const rawPain = (config.painPoint || '').trim();
@@ -502,7 +526,7 @@ export function generateLocalMessageFallback(
       const prob = painSentence || '';
 
       // Solution: riformulata senza testo tra parentesi
-      let sol = `${productName} helps qualify commercial opportunities and free up operational time.`;
+      let sol = `${productName} helps streamline commercial processes and free up operational time.`;
       if (stage === 'evaluation' && offerType === 'affiliate') {
         sol += ` We propose a commission rate of ${commissionRate} for each generated partner sale.`;
       }
@@ -566,7 +590,7 @@ export function generateLocalMessageFallback(
       }
 
       const prob = painSentence || '';
-      const sol = `${productName} permet de qualifier les opportunités et de libérer du temps opérationnel.`;
+      const sol = `${productName} permet d'optimiser les processus commerciaux et de libérer du temps opérationnel.`;
 
       const ctaQuestion = 'Seriez-vous intéressé pour consulter la suite via le lien dédié?';
       const ctaBlock = includeLink && targetUrl ? `${ctaQuestion}\n${targetUrl}` : ctaQuestion;
@@ -587,17 +611,15 @@ export function generateLocalMessageFallback(
       // Observation
       let obs = '';
       if (vIdx === 0 && lead.businessSignals?.numReviews) {
-        obs = isInformal
-          ? `ho visto la presenza di ${lead.shopName} e le ${lead.businessSignals.numReviews} recensioni ricevute ${platformPhrase}.`
-          : `ho visto la presenza di ${lead.shopName} e le ${lead.businessSignals.numReviews} recensioni ricevute ${platformPhrase}.`;
+        const atCity = city ? ` a ${city}` : '';
+        obs = `ho visto le ${lead.businessSignals.numReviews} recensioni ricevute da ${lead.shopName}${atCity}.`;
       } else if (vIdx === 1 && city && lead.shopName) {
         obs = isInformal
           ? `ho notato la tua attività con ${lead.shopName} a ${city}.`
           : `ho notato la presenza di ${lead.shopName} a ${city}.`;
       } else if (lead.shopName) {
-        obs = isInformal
-          ? `ho visto la presenza di ${lead.shopName} nel settore ${category} ${platformPhrase}.`
-          : `ho visto la presenza di ${lead.shopName} nel settore ${category} ${platformPhrase}.`;
+        const atCity = city ? ` a ${city}` : '';
+        obs = `ho visto che ${lead.shopName} opera nel settore ${category}${atCity}.`;
       } else {
         obs = isInformal
           ? `ho notato la tua presenza nel settore ${category} a ${location}.`
@@ -607,12 +629,12 @@ export function generateLocalMessageFallback(
       // Problem: usa SOLO painPoint se presente; altrimenti omesso
       const prob = painSentence || '';
 
-      // Solution: usa 'incentrato su' se c'è primaryFeature, senza preposizioni articolate errate
+      // Solution: usa config.valueProp/productDescription riformulato tramite la variabile benefit
       let sol = '';
       if (primaryFeature) {
-        sol = `${productName} aiuta le attività del comparto a qualificare le opportunità, con un modello incentrato su ${primaryFeature}.`;
+        sol = `${productName} ${benefit}, con una soluzione incentrata su ${primaryFeature}.`;
       } else {
-        sol = `${productName} consente di qualificare le opportunità commerciali e migliorare la gestione del tempo operativo.`;
+        sol = `${productName} ${benefit}.`;
       }
 
       if (stage === 'evaluation' && offerType === 'affiliate') {
@@ -681,7 +703,26 @@ export function generateLocalMessageFallback(
   }
 
   // Aggiunta firma programmatica
-  const finalBody = appendProgrammaticSignature(candidateBody, config);
+  let finalBody = appendProgrammaticSignature(candidateBody, config);
+
+  // Aggiunta riga STOP alla fine per gli stadi evaluation e purchase (se non già presente)
+  const stopKeywords = ['stop', 'ricevere altre email', 'no further emails', 'wish to receive'];
+  const hasStop = stopKeywords.some((keyword) => finalBody.toLowerCase().includes(keyword));
+  if (!hasStop) {
+    let stopLine = '';
+    if (lang === 'en') {
+      stopLine = 'If you do not wish to receive further emails, please reply with STOP.';
+    } else if (lang === 'de') {
+      stopLine = 'Wenn Sie keine weiteren E-Mails erhalten möchten, antworten Sie bitte mit STOP.';
+    } else if (lang === 'fr') {
+      stopLine = "Si vous ne souhaitez plus recevoir d'e-mails, répondez par STOP.";
+    } else {
+      stopLine = isInformal 
+        ? 'Se non desideri ricevere altre email, rispondi con STOP.' 
+        : 'Se non desiderate ricevere altre email, rispondete con STOP.';
+    }
+    finalBody = `${finalBody}\n\n${stopLine}`;
+  }
 
   return {
     subject: finalSubject,

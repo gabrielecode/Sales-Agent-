@@ -577,7 +577,29 @@ VINCOLI TASSATIVI:
             );
 
             if (validation.valid) {
-              const finalBody = stage === "awareness" ? candidateBody : appendProgrammaticSignature(candidateBody, config);
+              let finalBody = stage === "awareness" ? candidateBody : appendProgrammaticSignature(candidateBody, config);
+              
+              // Appendi STOP line se non è già presente
+              const stopKeywords = ["stop", "ricevere altre email", "no further emails", "wish to receive"];
+              const hasStop = stopKeywords.some((keyword) => finalBody.toLowerCase().includes(keyword));
+              if (!hasStop) {
+                const lang = lead.language || "it";
+                const isInformal = tone === "Informale";
+                let stopLine = "";
+                if (lang === "en") {
+                  stopLine = "If you do not wish to receive further emails, please reply with STOP.";
+                } else if (lang === "de") {
+                  stopLine = "Wenn Sie keine weiteren E-Mails erhalten möchten, antworten Sie bitte mit STOP.";
+                } else if (lang === "fr") {
+                  stopLine = "Si vous ne souhaitez plus recevoir d'e-mails, répondez par STOP.";
+                } else {
+                  stopLine = isInformal 
+                    ? "Se non desideri ricevere altre email, rispondi con STOP." 
+                    : "Se non desiderate ricevere altre email, rispondete con STOP.";
+                }
+                finalBody = `${finalBody}\n\n${stopLine}`;
+              }
+
               const wordCount = finalBody.split(/\s+/).filter(Boolean).length;
               return {
                 subject: String(parsed.subject).trim(),
