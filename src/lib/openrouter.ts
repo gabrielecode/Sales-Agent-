@@ -1,4 +1,5 @@
 import { Lead, ProductConfig, FunnelStage, IntentClassification } from '../types';
+import { authenticatedFetch } from './api';
 import { generateLocalMessageFallback } from './messageFallback';
 import { getFunnelStage } from './funnelStage';
 
@@ -23,7 +24,7 @@ export async function generateOutreachMessageWithAI(
   }
 
   try {
-    const res = await fetch('/api/generate-message', {
+    const res = await authenticatedFetch('/api/generate-message', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -63,7 +64,7 @@ export async function classifyResponseWithAI(
   config?: ProductConfig
 ): Promise<{ intent: IntentClassification; reason?: string }> {
   try {
-    const res = await fetch('/api/classify-response', {
+    const res = await authenticatedFetch('/api/classify-response', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

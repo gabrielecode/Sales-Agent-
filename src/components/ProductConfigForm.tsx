@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProductConfig, OfferType } from '../types';
+import { authenticatedFetch } from '../lib/api';
 import { getFunnelAssetsForOfferType } from '../utils/mockData';
 import {
   Settings,
@@ -71,7 +72,44 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
     emailFromDisplay: string;
     emailReplyToConfigured: boolean;
     emailReplyToAddress: string;
+    dailySent?: number;
   } | null>(null);
+
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  const [isProductFromKB, setIsProductFromKB] = useState<boolean>(Boolean(config.product_id && config.product_id !== 'legacy'));
+
+  useEffect(() => {
+    authenticatedFetch('/api/knowledge/products')
+      .then(res => res.json())
+      .then(data => setAvailableProducts(data.products || []))
+      .catch(e => console.error("Errore fetch products:", e));
+  }, []);
+
+  const handleProductChange = (productId: string) => {
+    if (productId === 'legacy') {
+      setIsProductFromKB(false);
+      setFormData({
+        ...formData,
+        product_id: 'legacy',
+        cta_mode: 'signup_link'
+      });
+      return;
+    }
+
+    const product = availableProducts.find(p => p.product_id === productId);
+    if (product) {
+      setIsProductFromKB(true);
+      setFormData({
+        ...formData,
+        product_id: product.product_id,
+        productName: product.product_name,
+        productDescription: product.description,
+        targetAudience: product.ideal_customer,
+        cta_mode: 'demo',
+        // In un caso reale caricheremmo anche i funnelAssets se presenti nel JSON
+      });
+    }
+  };
 
   const [showOverrideResendKey, setShowOverrideResendKey] = useState<boolean>(false);
   const [isDiagnosingResend, setIsDiagnosingResend] = useState<boolean>(false);
@@ -89,12 +127,10 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
     }
     setTestEmailFeedback(null);
     try {
-      const activeKey = (formData.resendApiKey || '').trim();
-      const res = await fetch('/api/debug-resend', {
+      const res = await authenticatedFetch('/api/debug-resend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apiKey: activeKey || undefined,
           testEmailTo: testRecipient || undefined,
           fromName: formData.emailFromName || '',
         }),
@@ -116,7 +152,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
   };
 
   useEffect(() => {
-    fetch('/api/config-status')
+    authenticatedFetch('/api/config-status')
       .then((res) => res.json())
       .then((data) => setServerStatus(data))
       .catch(() => {});
@@ -177,6 +213,51 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Prodotto Selezionato</label>
+              <select
+                value={formData.product_id || 'legacy'}
+                onChange={(e) => handleProductChange(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-slate-900 outline-none transition"
+              >
+                <option value="legacy">Affiliazione / Prodotto Personalizzato (Legacy)</option>
+                {availableProducts.map(p => (
+                  <option key={p.product_id} value={p.product_id}>{p.product_name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Modalità CTA (Call to Action)</label>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, cta_mode: 'signup_link' })}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition ${formData.cta_mode !== 'demo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Link Iscrizione
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, cta_mode: 'demo' })}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition ${formData.cta_mode === 'demo' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Proposta Demo
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {isProductFromKB && (
+            <div className="text-[10px] text-slate-500 flex items-center gap-1 bg-slate-50 p-2 rounded-lg border border-slate-100">
+              <Info className="w-3.5 h-3.5" />
+              I dettagli di questo prodotto sono caricati dalla Knowledge Base. <a href="#" className="underline font-medium text-indigo-600">Modifica JSON per cambiare i testi</a>.
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           {/* Left Column: Product Info */}
@@ -188,9 +269,10 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               <input
                 type="text"
                 required
+                readOnly={isProductFromKB}
                 value={formData.productName}
                 onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                className={`w-full px-3 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${isProductFromKB ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-200 focus:border-slate-900'}`}
               />
             </div>
 
@@ -218,7 +300,6 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
 
                     const rawUrl = formData.productUrl.trim();
                     const effectiveUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
-                    const apiKey = formData.openRouterApiKey || config.openRouterApiKey;
                     const model = formData.openRouterModel || config.openRouterModel || 'openai/gpt-4o-mini';
 
                     let analysis: any = null;
@@ -227,13 +308,12 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                     try {
                       const controller = new AbortController();
                       const timeoutId = setTimeout(() => controller.abort(), 25000);
-                      const res = await fetch('/api/analyze-product', {
+                      const res = await authenticatedFetch('/api/analyze-product', {
                         method: 'POST',
                         signal: controller.signal,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           url: effectiveUrl,
-                          openRouterApiKey: apiKey,
                           openRouterModel: model,
                         }),
                       });
@@ -255,42 +335,7 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                         analysis = data.analysis;
                       }
                     } catch (serverErr) {
-                      console.warn("Chiamata API /api/analyze-product fallita o timeout, tentativo fallback:", serverErr);
-                    }
-
-                    // Client-side fallback if server fails or returns error
-                    if (!analysis && apiKey) {
-                      try {
-                        const prompt = `Analizza questo URL/prodotto: ${effectiveUrl}. Estrai in formato JSON: productName, valueProposition (1-2 frasi), keyFeatures (array di 3 stringhe), targetAudience, offerType (software | digital_product | affiliate | collab | sponsorship), tone. Rispondi solo in JSON.`;
-                        const aiController = new AbortController();
-                        const aiTimeoutId = setTimeout(() => aiController.abort(), 8000);
-                        const directRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                          method: 'POST',
-                          signal: aiController.signal,
-                          headers: {
-                            'Authorization': `Bearer ${apiKey}`,
-                            'Content-Type': 'application/json',
-                            'HTTP-Referer': window.location.origin,
-                            'X-Title': 'Affiliate Sales Agent',
-                          },
-                          body: JSON.stringify({
-                            model,
-                            messages: [{ role: 'user', content: prompt }],
-                            temperature: 0.2,
-                          }),
-                        });
-                        clearTimeout(aiTimeoutId);
-                        if (directRes.ok) {
-                          const directData = await directRes.json();
-                          const content = directData.choices?.[0]?.message?.content || '';
-                          const jsonMatch = content.match(/\{[\s\S]*\}/);
-                          if (jsonMatch) {
-                            analysis = JSON.parse(jsonMatch[0]);
-                          }
-                        }
-                      } catch (aiErr) {
-                        console.warn("Fallback AI diretto fallito:", aiErr);
-                      }
+                      console.warn("Chiamata API /api/analyze-product fallita o timeout, tentativo fallback euristico:", serverErr);
                     }
 
                     // Domain heuristic fallback if still no analysis
@@ -509,9 +554,10 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               <label className="block text-xs font-medium text-slate-700 mb-1">Descrizione & Proposta di Valore</label>
               <textarea
                 rows={3}
+                readOnly={isProductFromKB}
                 value={formData.productDescription}
                 onChange={(e) => setFormData({ ...formData, productDescription: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                className={`w-full px-3 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${isProductFromKB ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-200 focus:border-slate-900'}`}
               />
             </div>
 
@@ -603,9 +649,10 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
               <label className="block text-xs font-medium text-slate-700 mb-1">Pubblico Target</label>
               <input
                 type="text"
+                readOnly={isProductFromKB}
                 value={formData.targetAudience}
                 onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-900"
+                className={`w-full px-3 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${isProductFromKB ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-200 focus:border-slate-900'}`}
               />
             </div>
 
@@ -690,28 +737,23 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
           <div className="space-y-4">
             <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Integrazioni API & Provider</h4>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                OpenRouter API Key (per generazione testi con LLM reali)
-              </label>
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold text-slate-800">Stato OpenRouter (LLM)</label>
               {serverStatus?.openRouterConfigured ? (
-                <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
-                  <span className="font-semibold">✅ Configurata su Vercel (server-side)</span>
-                  <span className="text-[10px] text-emerald-600 font-mono">OPENROUTER_API_KEY attiva</span>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center justify-between">
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    Configurato
+                  </span>
+                  <span className="text-[11px] font-mono bg-white px-2 py-0.5 rounded border border-emerald-200 text-emerald-700">
+                    {serverStatus.openRouterKeyMasked}
+                  </span>
                 </div>
               ) : (
-                <>
-                  <input
-                    type="password"
-                    placeholder="sk-or-v1-..."
-                    value={formData.openRouterApiKey || ''}
-                    onChange={(e) => setFormData({ ...formData, openRouterApiKey: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900"
-                  />
-                  <span className="text-[10px] text-amber-600 mt-0.5 block">
-                    ⚠️ Chiave inserita qui verrà salvata solo nel tuo browser (localStorage), usala solo per test locali. In produzione configura le variabili d'ambiente su Vercel.
-                  </span>
-                </>
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-1.5 shadow-sm">
+                  <AlertCircle className="w-4 h-4 text-rose-600" />
+                  Mancante (configura OPENROUTER_API_KEY su Vercel)
+                </div>
               )}
             </div>
 
@@ -721,73 +763,47 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                 type="text"
                 value={formData.openRouterModel || 'meta-llama/llama-3-8b-instruct:free'}
                 onChange={(e) => setFormData({ ...formData, openRouterModel: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900 shadow-sm"
               />
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-semibold text-slate-800">
-                  Resend API Key (per invio reale email)
-                </label>
-                {serverStatus?.resendConfigured && (
-                  <button
-                    type="button"
-                    onClick={() => setShowOverrideResendKey(!showOverrideResendKey)}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium underline cursor-pointer"
-                  >
-                    {showOverrideResendKey ? 'Nascondi override' : 'Modifica / Sovrascrivi chiave'}
-                  </button>
-                )}
-              </div>
-
-              {serverStatus?.resendConfigured && !showOverrideResendKey ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-800">Stato Resend (Email) & Quota</label>
+              {serverStatus?.resendConfigured ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      Attiva su Vercel (server-side)
+                      Configurato
                     </span>
                     <span className="text-[11px] font-mono bg-white px-2 py-0.5 rounded border border-emerald-200 text-emerald-700">
-                      {serverStatus.resendKeyMasked || 'RESEND_API_KEY'}
+                      {serverStatus.resendKeyMasked}
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-700 leading-relaxed">
-                    Il server Vercel utilizzerà questa chiave per tutte le richieste di invio email.
-                  </p>
+                  
+                  <div className="pt-2 border-t border-emerald-200/50 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="font-medium">Quota Giornaliera (Server):</span>
+                    </div>
+                    <span className="font-bold">
+                      {serverStatus.dailySent || 0} / {formData.dailyOutreachLimit || 100}
+                    </span>
+                  </div>
+                  <div className="w-full bg-emerald-200/50 h-1 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-emerald-600 h-full transition-all duration-500" 
+                      style={{ width: `${Math.min(100, ((serverStatus.dailySent || 0) / (formData.dailyOutreachLimit || 100)) * 100)}%` }}
+                    />
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-1.5">
-                  <div className="relative">
-                    <input
-                      type="password"
-                      placeholder="re_..."
-                      value={formData.resendApiKey || ''}
-                      onChange={(e) => setFormData({ ...formData, resendApiKey: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-900"
-                    />
-                    <Key className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span>
-                      {formData.resendApiKey?.trim()
-                        ? `Chiave locale personalizzata inserita (${formData.resendApiKey.slice(0, 6)}...${formData.resendApiKey.slice(-4)})`
-                        : serverStatus?.resendConfigured
-                        ? 'Lascia vuoto per utilizzare la chiave predefinita del server Vercel'
-                        : 'Inserisci la chiave API creata su Resend (prefisso re_)'}
-                    </span>
-                    {formData.resendApiKey && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, resendApiKey: '' })}
-                        className="text-rose-600 hover:underline cursor-pointer"
-                      >
-                        Ripristina predefinita
-                      </button>
-                    )}
-                  </div>
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-1.5 shadow-sm">
+                  <AlertCircle className="w-4 h-4 text-rose-600" />
+                  Mancante (configura RESEND_API_KEY su Vercel)
                 </div>
               )}
+            </div>
 
               {/* Action Buttons for Resend Diagnostics */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -951,7 +967,6 @@ export const ProductConfigForm: React.FC<ProductConfigFormProps> = ({
                   </div>
                 </div>
               )}
-            </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">

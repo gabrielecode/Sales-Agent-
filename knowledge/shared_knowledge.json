@@ -1,0 +1,24 @@
+{
+  "tone": "Professionale, consulenziale, empatico",
+  "company_name": "Siti Ticino",
+  "sender_name": "Gabriele Ferri",
+  "legal_name": "Siti Ticino di Gabriele Ferri",
+  "postal_address": "Via Serafino Balestra 12, 6900 Lugano, Svizzera",
+  "contact_email": "commerciale@sititicino.ch",
+  "unsubscribe_lines": {
+    "it": "Se non desiderate ricevere altre email, rispondete con STOP.",
+    "de": "Wenn Sie keine weiteren E-Mails erhalten möchten, antworten Sie bitte mit STOP.",
+    "fr": "Si vous ne souhaitez plus recevoir d'e-mails, répondez par STOP.",
+    "en": "If you do not wish to receive further emails, please reply with STOP."
+  },
+  "common_objections": [
+    {
+      "objection": "Non abbiamo budget ora",
+      "response": "Capisco perfettamente. Molti nostri partner hanno iniziato con la versione base proprio per ottimizzare i costi attuali senza investimenti pesanti."
+    },
+    {
+      "objection": "Siamo già a posto così",
+      "response": "Ottimo sentire che avete già una soluzione. La nostra proposta mira a integrare e velocizzare processi che spesso restano manuali anche con software esistenti."
+    }
+  ]
+}

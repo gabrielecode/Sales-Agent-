@@ -1,13 +1,16 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
+import crypto from "crypto";
+import fs from "fs";
+import { GoogleGenAI, Type, FunctionCallingConfigMode } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
+import { loadSharedKnowledge, loadProductKnowledge, getProductById } from "./src/lib/knowledge";
 import { generateLocalMessageFallback } from "./src/lib/messageFallback";
 import { validateGeneratedMessage } from "./src/lib/messageValidator";
 import { appendProgrammaticSignature } from "./src/lib/emailSignature";
 import { shouldIncludeLink } from "./src/lib/outreachLink";
-import { FunnelStage, IntentClassification } from "./src/types";
+import { FunnelStage, IntentClassification, ProductKnowledge, SharedKnowledge } from "./src/types";
 
 dotenv.config();
 
@@ -65,6 +68,48 @@ let inMemoryInboundEvents: InboundEmailEvent[] = [];
 let isSupabaseInboundAvailable: boolean | null = null;
 let lastSupabaseCheckTime = 0;
 
+const ipLimits = new Map<string, { count: number; reset: number }>();
+const rateLimitMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const limit = 30;
+  const windowMs = 60000;
+
+  let userData = ipLimits.get(ip);
+  if (!userData || now > userData.reset) {
+    userData = { count: 0, reset: now + windowMs };
+  }
+
+  userData.count++;
+  ipLimits.set(ip, userData);
+
+  if (userData.count > limit) {
+    return res.status(429).json({ error: "Troppe richieste (Rate limit: 30/min). Riprova tra un minuto." });
+  }
+  next();
+};
+
+const authMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const publicPaths = ["/api/health", "/api/webhooks/resend-inbound", "/webhooks/resend-inbound"];
+  if (publicPaths.includes(req.path)) {
+    return next();
+  }
+  
+  const token = process.env.APP_ACCESS_TOKEN;
+  if (!token) {
+    // Se il token non è configurato sul server, permettiamo l'accesso (utile per il primo setup)
+    // ma logghiamo un warning
+    console.warn("APP_ACCESS_TOKEN non configurato. Accesso API pubblico attivo.");
+    return next();
+  }
+  
+  const authHeader = req.headers.authorization;
+  if (!authHeader || authHeader !== `Bearer ${token}`) {
+    return res.status(401).json({ error: "Accesso non autorizzato (Token mancante o invalido)" });
+  }
+  next();
+};
+
 async function checkSupabaseInboundAvailability(): Promise<boolean> {
   if (!supabase) return false;
   const now = Date.now();
@@ -92,10 +137,128 @@ async function checkSupabaseInboundAvailability(): Promise<boolean> {
   }
 }
 
+async function isEmailSuppressed(email: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { data, error } = await supabase
+      .from("suppression_list")
+      .select("email")
+      .eq("email", email.toLowerCase().trim())
+      .single();
+    
+    if (error && error.code !== "PGRST116") {
+      console.warn(`[Supabase] Errore verifica suppression list per ${email}:`, error.message);
+      return false;
+    }
+    return !!data;
+  } catch (err) {
+    console.error(`[Supabase] Eccezione verifica suppression list:`, err);
+    return false;
+  }
+}
+
+async function addToSuppressionList(email: string, reason: string) {
+  if (!supabase) {
+    console.warn(`[Suppression] Impossibile aggiungere ${email} alla lista (Supabase non configurato)`);
+    return;
+  }
+  try {
+    const { error } = await supabase.from("suppression_list").upsert({
+      email: email.toLowerCase().trim(),
+      reason,
+      added_at: new Date().toISOString(),
+    }, { onConflict: 'email' });
+    
+    if (error) {
+      console.warn(`[Supabase] Errore aggiunta a suppression list:`, error.message);
+    } else {
+      console.log(`[Suppression] Email ${email} aggiunta alla lista (Motivo: ${reason})`);
+    }
+  } catch (err) {
+    console.error(`[Supabase] Eccezione aggiunta suppression list:`, err);
+  }
+}
+
+async function logAction(params: {
+  action: string;
+  lead_id?: string;
+  product_id?: string;
+  model?: string;
+  outcome?: string;
+  details?: any;
+  run_id?: string;
+}) {
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from("agent_actions").insert([
+      {
+        ts: new Date().toISOString(),
+        run_id: params.run_id || `run_${Date.now()}`,
+        action: params.action,
+        lead_id: params.lead_id,
+        product_id: params.product_id,
+        model: params.model,
+        outcome: params.outcome || "success",
+        details: params.details || {},
+      },
+    ]);
+    if (error) console.warn("[Supabase] Errore log action:", error.message);
+  } catch (err) {
+    console.error("[Supabase] Eccezione log action:", err);
+  }
+}
+
+async function getDailySentCountServer(): Promise<number> {
+  if (!supabase) return 0;
+  try {
+    const zurichToday = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Zurich" });
+    const { count, error } = await supabase
+      .from("agent_actions")
+      .select("*", { count: "exact", head: true })
+      .eq("action", "sent")
+      .gte("ts", `${zurichToday}T00:00:00Z`);
+
+    if (error) {
+      console.warn("[Supabase] Errore conteggio quota:", error.message);
+      return 0;
+    }
+    return count || 0;
+  } catch {
+    return 0;
+  }
+}
+
 
 // Helper heuristic classification when AI is unavailable
 function classifyTextLocally(text: string): { intent: IntentClassification; reason: string } {
   const lower = (text || "").toLowerCase();
+
+  if (
+    lower.includes("disiscrivimi") ||
+    lower.includes("unsubscribe") ||
+    lower.includes("abmelden") ||
+    lower.includes("désabonner") ||
+    lower.includes("stop") ||
+    lower.includes("no further emails") ||
+    lower.includes("no more emails") ||
+    lower.includes("non scrivermi") ||
+    lower.includes("cancella")
+  ) {
+    return { intent: "unsubscribe", reason: "Richiesta di disiscrizione rilevata" };
+  }
+
+  if (
+    lower.includes("out of office") ||
+    lower.includes("fuori ufficio") ||
+    lower.includes("assente") ||
+    lower.includes("vacanza") ||
+    lower.includes("reindirizzato") ||
+    lower.includes("holiday") ||
+    lower.includes("abwesenheitsnotiz")
+  ) {
+    return { intent: "out_of_office", reason: "Risposta automatica di assenza rilevata" };
+  }
+
   if (
     lower.includes("pronti") ||
     lower.includes("attivare") ||
@@ -112,10 +275,8 @@ function classifyTextLocally(text: string): { intent: IntentClassification; reas
     lower.includes("non siamo interessati") ||
     lower.includes("non accettiamo") ||
     lower.includes("no grazie") ||
-    lower.includes("disiscrivimi") ||
     lower.includes("altre priorità") ||
-    lower.includes("rifiuto") ||
-    lower.includes("unsubscribe")
+    lower.includes("rifiuto")
   ) {
     return { intent: "not_interested", reason: "Rifiuto o disinteresse esplicito" };
   }
@@ -136,24 +297,20 @@ function classifyTextLocally(text: string): { intent: IntentClassification; reas
 }
 
 // AI Classifier via OpenRouter
-async function classifyTextWithOpenRouter(
-  text: string,
-  apiKey?: string,
-  model?: string
+// AI Classifier with multi-provider support
+async function classifyTextWithAI(
+  text: string
 ): Promise<{ intent: IntentClassification; reason: string }> {
-  const key = (process.env.OPENROUTER_API_KEY || apiKey || "").trim();
-  const selectedModel = (model || "meta-llama/llama-3-8b-instruct:free").trim();
+  const geminiKey = (process.env.GEMINI_API_KEY || "").trim();
+  const openRouterKey = (process.env.OPENROUTER_API_KEY || "").trim();
 
-  if (!key) {
-    return classifyTextLocally(text);
-  }
-
-  try {
-    const prompt = `Sei un assistente commerciale B2B esperto. Classifica la seguente risposta ricevuta da un lead in una delle 4 categorie di intento:
+  const prompt = `Sei un assistente commerciale B2B esperto. Classifica la seguente risposta ricevuta da un lead in una delle categorie di intento:
 - "interested": Mostra interesse, chiede di fissare una call o approfondire la collaborazione.
 - "info_requested": Chiede specifiche su percentuali, modalità operative, requisiti o dettagli tecnici.
 - "ready_to_close": Vuole procedere immediatamente (chiede link referral, contratto, coupon o onboarding immediato).
-- "not_interested": Rifiuta l'offerta, dice di non essere interessato o chiede la disiscrizione.
+- "not_interested": Rifiuta l'offerta o dice di non essere interessato.
+- "unsubscribe": Chiede esplicitamente di essere rimosso, di non scrivere più o usa parole come STOP/DISISCRIVIMI.
+- "out_of_office": Risposta automatica di assenza dall'ufficio o ferie.
 
 Testo della risposta ricevuta:
 """
@@ -161,45 +318,59 @@ ${text}
 """
 
 Rispondi ESCLUSIVAMENTE con un JSON valido nel formato:
-{"intent": "interested" | "info_requested" | "ready_to_close" | "not_interested", "reason": "breve motivazione in italiano"}`;
+{"intent": "interested" | "info_requested" | "ready_to_close" | "not_interested" | "unsubscribe" | "out_of_office", "reason": "breve motivazione in italiano"}`;
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://affiliate-sales-agent.local",
-        "X-Title": "Affiliate Sales Agent",
-      },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
-      }),
-    });
+  // 1. Try Gemini Flash if key is present
+  if (geminiKey) {
+    try {
+      const genAI = getGemini();
+      if (genAI) {
+        const result = await withTimeout(genAI.models.generateContent({ 
+          model: "gemini-flash-latest",
+          contents: prompt,
+          config: { responseMimeType: "application/json" }
+        }), 8000, "Gemini Classification");
+        const data = JSON.parse(result.text || "{}");
+        if (data.intent) return data;
+      }
+    } catch (e) {
+      console.warn("Gemini Classification failed, falling back to OpenRouter:", e);
+    }
+  }
 
-    if (res.ok) {
-      const data = (await res.json()) as any;
-      const content = data.choices?.[0]?.message?.content || "";
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        const validIntents: IntentClassification[] = [
-          "interested",
-          "info_requested",
-          "ready_to_close",
-          "not_interested",
-        ];
-        if (validIntents.includes(parsed.intent)) {
+  // 2. Fallback to OpenRouter (llama-3-8b)
+  if (openRouterKey) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://affiliate-sales-agent.local",
+          "X-Title": "Affiliate Sales Agent",
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-3-8b-instruct:free",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.2,
+        }),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as any;
+        const content = data.choices?.[0]?.message?.content || "";
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
           return {
             intent: parsed.intent,
-            reason: parsed.reason || "Classificato da modello AI",
+            reason: parsed.reason || "Classificato da OpenRouter",
           };
         }
       }
+    } catch (err) {
+      console.warn("OpenRouter Classification failed, using local heuristic:", err);
     }
-  } catch (err) {
-    console.warn("Classificazione AI fallita, utilizzo fallback euristico:", err);
   }
 
   return classifyTextLocally(text);
@@ -283,9 +454,17 @@ async function generateMessageInternal(
   config: any,
   stage: FunnelStage = "awareness"
 ): Promise<{ subject: string; body: string; generatedBy: "gemini" | "openrouter" | "fallback"; wordCount: number }> {
-  const apiKey = (process.env.OPENROUTER_API_KEY || config?.openRouterApiKey || "").trim();
-  const model = (config?.openRouterModel || "meta-llama/llama-3-8b-instruct:free").trim();
+  const geminiApiKey = (process.env.GEMINI_API_KEY || "").trim();
+  const openRouterApiKey = (process.env.OPENROUTER_API_KEY || "").trim();
+  const modelOpenRouter = (config?.openRouterModel || "meta-llama/llama-3-8b-instruct:free").trim();
+  const modelGemini = process.env.GEMINI_PRODUCT_MODEL || "gemini-2.0-flash-exp";
+  
+  const product_id = config.product_id || 'legacy';
+  const kbProduct = product_id !== 'legacy' ? getProductById(product_id) : null;
+  const shared = loadSharedKnowledge();
+
   const tone = lead.toneOfVoice || "Formale";
+  const language = lead.language || "it";
 
   const targetUrl = (config?.productUrl || config?.productAnalysis?.sourceUrl || "").trim();
   const productName = (config?.productName || "").trim();
@@ -295,7 +474,7 @@ async function generateMessageInternal(
     throw new Error("Configura nome prodotto e mittente prima di generare le email");
   }
 
-  const valueProp = (config?.productAnalysis?.valueProposition || config?.productDescription || "").trim();
+  const valueProp = (kbProduct?.description || config?.productAnalysis?.valueProposition || config?.productDescription || "").trim();
   const productDataText = getProductDataText(config);
 
   // Intelligently resolve the specific sector / merchandise category
@@ -464,7 +643,8 @@ VINCOLI TASSATIVI:
     ? `Usa "${tone === "Informale" ? `Ciao ${lead.contactName.trim()},` : `Buongiorno ${lead.contactName.trim()},`}"`
     : `Usa rigorosamente "${tone === "Informale" ? "Ciao," : "Buongiorno,"}" (non inventare nomi di persona!)`;
 
-  const freeTrialText = (config?.freeTrialText || "").trim();
+  const freeTrialTextParam = (config?.freeTrialText || "").trim();
+  const toneDesc = shared?.tone || (tone === "Informale" ? "Informale e diretto" : "Professionale e consulenziale");
 
   const userPrompt = stage === "awareness"
     ? `FATTI USABILI DEL LEAD:
@@ -474,40 +654,28 @@ CONTESTO PRODOTTO:
 - Nome Prodotto: ${productName}
 - Proposta di Valore (Beneficio): ${valueProp || "Ottimizzazione processi e conversione commerciale"}
 - Problema specifico (Pain Point): ${config?.painPoint || "dispersione di tempo operativo nella gestione delle vendite"}
-- Testo Prova/Gratuità (se presente): ${freeTrialText || "(nessuno)"}
+- Testo Prova/Gratuità (se presente): ${freeTrialTextParam || "(nessuno)"}
 - Link/URL: ${targetUrl}
-- Nome Mittente (da inserire in firma): ${config?.emailFromName || ""}
+- Nome Mittente: ${emailFromName}
 
 PARAMETRI EMAIL:
-- Lingua da usare: ${lead.language || "it"}
-- Tono di voce: ${tone} (${tone === "Informale" ? "dai del Tu, approccio diretto" : "dai del Lei, approccio professionale"})
-- Saluto iniziale obbligatorio: ${contactGreetingRule}
-
-VINCOLI TASSATIVI:
-- STRUTTURA: Segui rigorosamente il template di primo contatto (saluto, problema/pain, beneficio/soluzione + prova se fornita, link su riga propria, firma Cordiali saluti, STOP line).
-- Nessun punto interrogativo "?" (niente domande).
-- Rispondi solo in formato JSON con le chiavi "subject" e "body".`
+- Lingua da usare: ${language}
+- Tono di voce: ${toneDesc}
+- Saluto iniziale: ${contactGreetingRule}
+`
     : `FATTI USABILI DEL LEAD:
 ${fattiUsabili.map((f) => `- ${f}`).join("\n")}
 
 CONTESTO PRODOTTO:
 - Nome Prodotto: ${productName}
-- Proposta di Valore: ${valueProp || "Ottimizzazione processi e conversione commerciale"}
+- Proposta di Valore: ${valueProp}
 - Link/URL: ${includeLink ? targetUrl : "NESSUN LINK (vietato nel primo contatto)"}
 
 PARAMETRI EMAIL:
-- Lingua da usare: ${lead.language || "it"}
-- Tono di voce: ${tone} (${tone === "Informale" ? "dai del Tu, approccio diretto" : "dai del Lei, approccio professionale"})
-- Stadio funnel: ${stage.toUpperCase()}
-- Saluto iniziale obbligatorio: ${contactGreetingRule}
-
-VINCOLI TASSATIVI:
-- PRODOTTO: Il prodotto descritto deve essere solo quello di productName + valueProposition. Non aggiungere funzionalità o casi d'uso non presenti nell'analisi.
-- OFFERTE E FATTI: Non inventare offerte, sconti o risultati. Se non sono nei dati, proponi solo di mandare un'analisi o di fare una chiamata di 10 minuti.
-- SALUTO: Se lead.contactName manca, usa "Ciao," o "Buongiorno," senza inventare nomi.
-- FIRMA: Il modello non deve mai scrivere firma, nome o ruolo. L'output deve terminare con la domanda di CTA finale. La firma verrà aggiunta via codice.
-- STRUTTURA: 4 blocchi (Osservazione -> Problema -> Soluzione -> CTA con domanda singola), max 90 parole.
-- Rispondi solo in formato JSON con le chiavi "subject" e "body".`;
+- Lingua: ${language}
+- Tono: ${toneDesc}
+- Saluto iniziale: ${contactGreetingRule}
+`;
 
   // Server-side DEBUG log (solo in sviluppo, NON in produzione)
   if (process.env.NODE_ENV !== "production") {
@@ -625,7 +793,7 @@ VINCOLI TASSATIVI:
   }
 
   // 2. Try OpenRouter if API key is provided
-  if (apiKey) {
+  if (openRouterApiKey) {
     let currentPrompt = userPrompt;
     for (let attempt = 0; attempt < 2; attempt++) {
       const controllerOpenRouter = new AbortController();
@@ -635,13 +803,13 @@ VINCOLI TASSATIVI:
           method: "POST",
           signal: controllerOpenRouter.signal,
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${openRouterApiKey}`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://affiliate-sales-agent.local",
             "X-Title": "Affiliate Sales Agent",
           },
           body: JSON.stringify({
-            model,
+            model: modelOpenRouter,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: currentPrompt },
@@ -676,7 +844,7 @@ VINCOLI TASSATIVI:
               );
 
               if (validation.valid) {
-                const finalBody = stage === "awareness" ? candidateBody : appendProgrammaticSignature(candidateBody, config);
+                const finalBody = stage === "awareness" ? candidateBody : appendProgrammaticSignature(candidateBody, config, lead.language || 'it');
                 const wordCount = finalBody.split(/\s+/).filter(Boolean).length;
                 return {
                   subject: String(parsed.subject).trim(),
@@ -729,9 +897,8 @@ async function sendEmailInternal(
       .replace(/^Bearer\s+/i, "")
       .trim();
 
-  const clientKey = cleanKey(config?.resendApiKey);
   const serverKey = cleanKey(process.env.RESEND_API_KEY);
-  const apiKey = clientKey || serverKey;
+  const apiKey = serverKey;
 
   const cleanString = (val: any) =>
     (typeof val === "string" ? val : "")
@@ -784,6 +951,7 @@ async function sendEmailInternal(
       html: `<div style="font-family: sans-serif; line-height: 1.6; color: #1e293b;">${body.replace(/\n/g, "<br>")}</div>`,
       headers: {
         "List-Unsubscribe": `<mailto:${cleanReplyTo}?subject=STOP>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     };
 
@@ -834,8 +1002,11 @@ async function sendEmailInternal(
 const app = express();
 const PORT = 3000;
 
+// Middleware per catturare il body grezzo dei webhook PRIMA del parser JSON globale
+app.post(["/api/webhooks/resend-inbound", "/webhooks/resend-inbound"], express.raw({ type: 'application/json' }));
+
 app.use((req, res, next) => {
-  if (req.body && typeof req.body === "object") {
+  if (req.body && typeof req.body === "object" && !(req.body instanceof Buffer)) {
     (req as any)._body = true;
   }
   next();
@@ -843,9 +1014,10 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: "10mb" }));
 
-// Permissive CORS headers for API requests
+// Restricted CORS headers for API requests
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const appUrl = process.env.APP_URL || "*";
+  res.setHeader("Access-Control-Allow-Origin", appUrl);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
@@ -853,6 +1025,12 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Auth and Rate Limit middleware
+app.use("/api", authMiddleware);
+app.use("/api/send-email", rateLimitMiddleware);
+app.use("/api/generate-message", rateLimitMiddleware);
+app.use("/api/autopilot/run", rateLimitMiddleware);
 
 // Helper to extract structured analysis from HTML directly as fallback or primary
 function extractProductAnalysisFromHtml(htmlText: string, cleanedText: string, url: string) {
@@ -1038,7 +1216,8 @@ app.get(["/api/health", "/health"], async (req, res) => {
 });
 
 // Endpoint to check server-side configuration status (booleans and public info only)
-app.get(["/api/config-status", "/config-status"], (req, res) => {
+app.get(["/api/config-status", "/config-status"], async (req, res) => {
+    const dailySent = await getDailySentCountServer();
     const rawOpenRouterKey = (process.env.OPENROUTER_API_KEY || "").trim();
     const openRouterConfigured = Boolean(rawOpenRouterKey !== "");
     const openRouterKeyMasked = openRouterConfigured
@@ -1072,7 +1251,18 @@ app.get(["/api/config-status", "/config-status"], (req, res) => {
         : resolvedFrom,
       emailReplyToConfigured,
       emailReplyToAddress: cleanReplyTo || "risposte@inbound.sititicino.ch",
+      dailySent,
     });
+  });
+
+  app.get("/api/knowledge/shared", (req, res) => {
+    const shared = loadSharedKnowledge();
+    res.json(shared || {});
+  });
+
+  app.get("/api/knowledge/products", (req, res) => {
+    const products = loadProductKnowledge();
+    res.json({ products });
   });
 
   // Dedicated Resend Diagnostic Endpoint
@@ -1534,11 +1724,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
         return res.status(400).json({ error: "Testo mancante per la classificazione" });
       }
 
-      const result = await classifyTextWithOpenRouter(
-        text,
-        config?.openRouterApiKey,
-        config?.openRouterModel
-      );
+      const result = await classifyTextWithAI(text);
 
       return res.json(result);
     } catch (err: any) {
@@ -1557,6 +1743,29 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
           success: false,
           simulated: false,
           error: "Parametri obbligatori mancanti (to, subject, body)",
+        });
+      }
+
+      // Verifica suppression list
+      if (await isEmailSuppressed(to)) {
+        return res.json({
+          success: false,
+          simulated: false,
+          error: "Invio bloccato: indirizzo email in suppression list (opt-out).",
+          reason: "suppressed"
+        });
+      }
+
+      // Verifica dati societari per conformità (solo se non è DRY_RUN)
+      const isDryRun = process.env.DRY_RUN !== "false"; // Default true
+      const legalName = (config?.legal_name || config?.company_name || 'N/A').trim();
+      const postalAddress = (config?.postal_address || 'N/A').trim();
+      
+      if (!isDryRun && (legalName === 'N/A' || postalAddress === 'N/A')) {
+        return res.status(400).json({
+          success: false,
+          simulated: false,
+          error: "Invio reale bloccato: mancano ragione sociale o indirizzo postale nella configurazione (obbligatori per conformità legale UWG)."
         });
       }
 
@@ -1633,6 +1842,13 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
 
       for (let i = 0; i < batchToProcess.length; i++) {
         const lead = batchToProcess[i];
+
+        // Verifica suppression list
+        if (await isEmailSuppressed(lead.email)) {
+          console.log(`Autopilot: Saltato ${lead.email} perché in suppression list.`);
+          continue;
+        }
+
         // 1. Generate awareness stage message
         const message = await generateMessageInternal(lead, config, "awareness");
 
@@ -1679,10 +1895,152 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
     }
   });
 
+  // 4b. Leads Persistence Endpoints
+  app.get("/api/leads", async (req, res) => {
+    if (!supabase) return res.status(501).json({ error: "Supabase non configurato" });
+    try {
+      const { data, error } = await supabase.from("leads").select("*");
+      if (error) throw error;
+      // Mappiamo i dati nel formato atteso dal client
+      const leads = (data || []).map(row => ({
+        ...(row.data || {}),
+        id: row.id,
+        status: row.status,
+        leadScore: row.lead_score,
+      }));
+      return res.json({ leads });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/leads/upsert", async (req, res) => {
+    if (!supabase) return res.status(501).json({ error: "Supabase non configurato" });
+    try {
+      const { leads } = req.body || {};
+      if (!Array.isArray(leads)) return res.status(400).json({ error: "Payload non valido: attesa lista di lead" });
+      
+      const rows = leads.map(l => ({
+        id: l.id,
+        data: l,
+        status: l.status,
+        lead_score: typeof l.leadScore === 'number' ? l.leadScore : 0,
+        product_id: l.product_id || "legacy",
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error } = await supabase.from("leads").upsert(rows, { onConflict: 'id' });
+      if (error) throw error;
+      
+      return res.json({ success: true, count: rows.length });
+    } catch (err: any) {
+      console.error("Errore upsert leads:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // 4c. Lead Routing Orchestrator
+  app.post("/api/route-lead", async (req, res) => {
+    try {
+      const { lead } = req.body || {};
+      if (!lead) return res.status(400).json({ error: "Lead mancante" });
+
+      const genAI = getGemini();
+      const modelName = process.env.GEMINI_ORCHESTRATOR_MODEL || "gemini-2.0-flash-exp";
+      
+      if (!genAI) {
+        return res.status(503).json({ error: "Servizio AI non disponibile" });
+      }
+
+      const products = loadProductKnowledge();
+      const productsText = products.map(p => `- ${p.product_id}: ${p.product_name}. ${p.description}`).join('\n');
+
+      const prompt = `Analizza il lead e usa route_lead per assegnarlo.
+Prodotti:
+${productsText}
+
+Lead:
+${JSON.stringify(lead, null, 2)}`;
+
+      const result = await withTimeout(genAI.models.generateContent({
+        model: modelName === "gemini-2.0-flash-exp" ? "gemini-flash-latest" : modelName,
+        contents: prompt,
+        config: {
+          systemInstruction: "Sei un orchestratore che assegna i lead ai prodotti più pertinenti.",
+          tools: [{
+            functionDeclarations: [{
+              name: "route_lead",
+              description: "Assegna un lead al prodotto più pertinente o a 'none'.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  product_id: { type: Type.STRING, description: "ID del prodotto scelto o 'none'." },
+                  confidence: { type: Type.NUMBER, description: "Confidenza 0-1." },
+                  reason: { type: Type.STRING, description: "Spiegazione." }
+                },
+                required: ["product_id", "confidence", "reason"]
+              }
+            }]
+          }],
+          toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } } as any
+        }
+      }), 10000, "Gemini Routing");
+
+      const call = result.functionCalls?.[0];
+      
+      if (call && call.name === "route_lead") {
+        return res.json(call.args);
+      }
+      
+      // Fallback if no function call
+      return res.status(500).json({ error: "L'AI non ha invocato la funzione di routing." });
+    } catch (err: any) {
+      console.error("Errore routing lead:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // 5. Inbound Webhook for Resend (/api/webhooks/resend-inbound)
   app.post(["/api/webhooks/resend-inbound", "/webhooks/resend-inbound"], async (req, res) => {
     try {
-      const payload = req.body || {};
+      // 1. Verifica Firma Svix
+      const secret = process.env.RESEND_WEBHOOK_SECRET;
+      const svixId = req.headers["svix-id"] as string;
+      const svixTimestamp = req.headers["svix-timestamp"] as string;
+      const svixSignature = req.headers["svix-signature"] as string;
+
+      if (!secret || !svixId || !svixTimestamp || !svixSignature) {
+        return res.status(401).json({ error: "Firma webhook mancante o incompleta" });
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      const timestamp = parseInt(svixTimestamp, 10);
+      if (isNaN(timestamp) || Math.abs(now - timestamp) > 300) {
+        return res.status(401).json({ error: "Timestamp webhook fuori tolleranza (5 min)" });
+      }
+
+      const rawBody = req.body instanceof Buffer ? req.body.toString("utf8") : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+      const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+      
+      const secretKey = secret.startsWith("whsec_") ? secret.replace("whsec_", "") : secret;
+      const secretBuffer = Buffer.from(secretKey, "base64");
+      
+      const expectedSignature = crypto
+        .createHmac("sha256", secretBuffer)
+        .update(signedContent)
+        .digest("base64");
+
+      const signatures = svixSignature.split(" ");
+      const isValid = signatures.some(s => {
+        const [version, signature] = s.split(",");
+        return version === "v1" && signature === expectedSignature;
+      });
+
+      if (!isValid) {
+        return res.status(401).json({ error: "Firma webhook non valida" });
+      }
+
+      const payload = JSON.parse(rawBody);
       const data = payload.data || payload;
 
       // Extract sender, recipient (to), subject, body, in-reply-to
@@ -1701,11 +2059,21 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
         return res.status(400).json({ error: "Indirizzo mittente 'from' non trovato nel payload webhook" });
       }
 
+      // 2. Idempotenza: Verifica se l'evento è già stato elaborato (in-memory)
+      if (inMemoryInboundEvents.some(ev => ev.id === svixId)) {
+        return res.status(200).json({ success: true, message: "Evento già elaborato (idempotenza)" });
+      }
+
       // Classify the response intent
-      const classification = await classifyTextWithOpenRouter(text);
+      const classification = await classifyTextWithAI(text);
+
+      // 3. Se l'intento è unsubscribe, aggiungi alla suppression list
+      if (classification.intent === "unsubscribe") {
+        await addToSuppressionList(senderEmail, "Richiesta via email (unsubscribe)");
+      }
 
       const event: InboundEmailEvent = {
-        id: `inbound_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: svixId,
         from: fromRaw,
         senderEmail,
         to: toEmail,
@@ -1717,7 +2085,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
         receivedAt: new Date().toISOString(),
       };
 
-      // Always store in in-memory buffer first so no inbound event is ever lost
+      // Always store in in-memory buffer first
       inMemoryInboundEvents.unshift(event);
       if (inMemoryInboundEvents.length > 200) {
         inMemoryInboundEvents = inMemoryInboundEvents.slice(0, 200);
@@ -1725,7 +2093,7 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
 
       if (supabase && (await checkSupabaseInboundAvailability())) {
         try {
-          const { error } = await supabase.from("inbound_events").insert([
+          const { error } = await supabase.from("inbound_events").upsert([
             {
               id: event.id,
               from: event.from,
@@ -1738,9 +2106,9 @@ Rispondi ESCLUSIVAMENTE con un oggetto JSON valido nel formato esatto:
               reason: event.reason,
               receivedAt: event.receivedAt,
             },
-          ]);
+          ], { onConflict: 'id' });
           if (error) {
-            console.warn("[Supabase Inbound] Inserimento non riuscito, evento memorizzato in locale:", error.message || error);
+            console.warn("[Supabase Inbound] Upsert non riuscito, evento memorizzato in locale:", error.message || error);
           }
         } catch (dbErr: any) {
           console.warn("[Supabase Inbound] Connessione DB fallita, evento memorizzato in locale:", dbErr?.message || dbErr);

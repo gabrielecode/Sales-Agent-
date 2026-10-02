@@ -343,8 +343,8 @@ function buildAwarenessTemplate(
   }
 
   const finalBody = bodyBlock1
-    ? `${greeting}\n\n${bodyBlock1}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}\n\n${signatureLine}\n\n${stopLine}`
-    : `${greeting}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}\n\n${signatureLine}\n\n${stopLine}`;
+    ? `${greeting}\n\n${bodyBlock1}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}`
+    : `${greeting}\n\n${solutionSentence}\n\n${inviteLine}\n${targetUrl}`;
 
   return {
     subject,
@@ -396,7 +396,11 @@ export function generateLocalMessageFallback(
   // SE SIAMO IN STADIO AWARENESS, USIAMO IL NUOVO TEMPLATE FISSO DIRETTAMENTE
   if (stage === 'awareness') {
     const category = getCleanMerchandiseCategory(lead.industry, lead.shortNotes, lead.shopName, config);
-    return buildAwarenessTemplate(lang, isInformal, lead, config, category, productName, targetUrl);
+    const msg = buildAwarenessTemplate(lang, isInformal, lead, config, category, productName, targetUrl);
+    return {
+      subject: msg.subject,
+      body: appendProgrammaticSignature(msg.body, config, lang)
+    };
   }
 
   const offerType = config.offerType || (config as any).productAnalysis?.offerType || 'affiliate';
@@ -702,27 +706,8 @@ export function generateLocalMessageFallback(
     candidateBody = minimal.body;
   }
 
-  // Aggiunta firma programmatica
-  let finalBody = appendProgrammaticSignature(candidateBody, config);
-
-  // Aggiunta riga STOP alla fine per gli stadi evaluation e purchase (se non già presente)
-  const stopKeywords = ['stop', 'ricevere altre email', 'no further emails', 'wish to receive'];
-  const hasStop = stopKeywords.some((keyword) => finalBody.toLowerCase().includes(keyword));
-  if (!hasStop) {
-    let stopLine = '';
-    if (lang === 'en') {
-      stopLine = 'If you do not wish to receive further emails, please reply with STOP.';
-    } else if (lang === 'de') {
-      stopLine = 'Wenn Sie keine weiteren E-Mails erhalten möchten, antworten Sie bitte mit STOP.';
-    } else if (lang === 'fr') {
-      stopLine = "Si vous ne souhaitez plus recevoir d'e-mails, répondez par STOP.";
-    } else {
-      stopLine = isInformal 
-        ? 'Se non desideri ricevere altre email, rispondi con STOP.' 
-        : 'Se non desiderate ricevere altre email, rispondete con STOP.';
-    }
-    finalBody = `${finalBody}\n\n${stopLine}`;
-  }
+  // Aggiunta firma programmatica (che include già la riga STOP e le info legali)
+  const finalBody = appendProgrammaticSignature(candidateBody, config, lang);
 
   return {
     subject: finalSubject,

@@ -1,0 +1,31 @@
+{
+  "product_id": "vicini",
+  "product_name": "Vicini",
+  "description": "Vicini è la piattaforma mobile-first per amministratori di condominio svizzeri che gestiscono da 10 a 100 unità. Elimina la dipendenza da Excel e software desktop obsoleti, permettendo una gestione fluida direttamente dal cantiere o durante i sopralluoghi.\n\nOffre un portale residenti per segnalazioni guasti, archiviazione documenti sicura e comunicazione automatizzata. Riduce del 40% il tempo speso in task amministrativi ripetitivi e telefonate di routine.",
+  "ideal_customer": "Amministratori di condominio indipendenti o piccoli studi in Svizzera (Ticino, Romandia, Svizzera Tedesca).",
+  "target_roles": {
+    "it": ["Amministratore di condominio", "Gestore immobiliare", "Fiduciaria immobiliare"],
+    "de": ["Immobilienverwalter", "Liegenschaftsverwalter", "Stockwerkeigentumsverwalter"],
+    "fr": ["Gérant d'immeubles", "Administrateur de PPE", "Régie immobilière"]
+  },
+  "scoring_rules": {
+    "role_match": 40,
+    "swiss_location": 20,
+    "relevant_keywords": ["condominio", "Stockwerkeigentum", "PPE", "gestione immobili", "amministrazione"],
+    "keyword_match": 20,
+    "valid_email": 20
+  },
+  "case_studies": [
+    {
+      "name": "Studio Immobiliare Lugano",
+      "result": "Riduzione 30% ticket telefonici in 3 mesi",
+      "verified": false
+    }
+  ],
+  "specific_objections": [
+    {
+      "objection": "Usiamo già un software gestionale desktop",
+      "response": "Vicini non sostituisce il tuo software contabile, ma lo affianca sul campo per gestire la comunicazione e i guasti che oggi gestisci via WhatsApp o email sparse."
+    }
+  ]
+}

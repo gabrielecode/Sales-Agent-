@@ -1,0 +1,6 @@
+Nome Negozio,Email,Piattaforma,Ruolo,Città,Cantone,Sito Web,Note
+Studio Amministrazione Lugano,info@luganoamministrazioni.ch,Web,Amministratore di condominio,Lugano,TI,https://luganoamministrazioni.ch,Gestione immobili Ticino (100 unità)
+Immobilien Management Zürich,hans.muller@immomgmt-zh.ch,Web,Immobilienbewirtschafter,Zürich,ZH,https://immomgmt-zh.ch,Professionelle Verwaltung
+Gestion Immobilière Genève,contact@gestion-geneve.ch,Web,Gérant d'immeubles,Genève,GE,https://gestion-geneve.ch,PPE et gestion locative
+Mario Rossi Idraulico,mario.rossi@ticino.ch,Web,Idraulico,Bellinzona,TI,,Idraulico indipendente
+Test Invalid,invalid-email,Web,Amministratore,Lugano,TI,,Senza email valida

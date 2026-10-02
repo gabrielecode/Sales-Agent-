@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Lead, IntentClassification } from '../types';
+import { authenticatedFetch } from '../lib/api';
 import { MessageSquareReply, CheckCircle2, DollarSign, Clock, ArrowRight, Zap, Trophy, ShieldAlert, Radio } from 'lucide-react';
 
 interface ResponsesListProps {
@@ -22,7 +23,7 @@ export const ResponsesList: React.FC<ResponsesListProps> = ({
 
     async function pollInboundEvents() {
       try {
-        const res = await fetch('/api/webhooks/inbound-events');
+        const res = await authenticatedFetch('/api/webhooks/inbound-events');
         if (!res.ok) return;
         const data = await res.json();
         const events: any[] = data.events || [];
@@ -48,7 +49,7 @@ export const ResponsesList: React.FC<ResponsesListProps> = ({
         });
 
         if (processedIds.length > 0) {
-          await fetch('/api/webhooks/clear-inbound-events', {
+          await authenticatedFetch('/api/webhooks/clear-inbound-events', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: processedIds }),

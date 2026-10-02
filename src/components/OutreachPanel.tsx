@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, ProductConfig, FunnelStage } from '../types';
+import { authenticatedFetch } from '../lib/api';
 import { generateOutreachMessageWithAI } from '../lib/openrouter';
 import { generateLocalMessageFallback } from '../lib/messageFallback';
 import { CategorySelect } from './CategorySelect';
@@ -77,9 +78,14 @@ export const OutreachPanel: React.FC<OutreachPanelProps> = ({
   const [singleSendFeedback, setSingleSendFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    fetch('/api/config-status')
+    authenticatedFetch('/api/config-status')
       .then((res) => res.json())
-      .then((data) => setServerStatus(data))
+      .then((data) => {
+        setServerStatus(data);
+        if (typeof data.dailySent === 'number') {
+          setDailySent(data.dailySent);
+        }
+      })
       .catch(() => {});
   }, []);
 

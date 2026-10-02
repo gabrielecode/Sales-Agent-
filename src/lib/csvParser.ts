@@ -51,13 +51,21 @@ export function validateEmailQuality(email?: string): 'Valida' | 'Sospetta' | 'M
   if (!email || !email.trim()) {
     return 'Mancante';
   }
-  const clean = email.trim();
-  // Valid email format: valid local-part + @ + domain + dot + at least 2 char TLD
+  const clean = email.trim().toLowerCase();
+  
+  // Valid email format
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (emailRegex.test(clean)) {
-    return 'Valida';
+  if (!emailRegex.test(clean)) {
+    return 'Sospetta';
   }
-  return 'Sospetta';
+
+  // Generic/Business email check
+  const genericPrefixes = ['info@', 'office@', 'admin@', 'hello@', 'contact@', 'support@', 'sales@', 'marketing@'];
+  if (genericPrefixes.some(prefix => clean.startsWith(prefix))) {
+    return 'Sospetta';
+  }
+
+  return 'Valida';
 }
 
 /**
@@ -90,13 +98,20 @@ export function detectMerchandiseCategory(
   return detectSectorSmart(shopName, notes, rawIndustry, url, configDefault);
 }
 
-export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
+export interface CSVParseResult {
+  leads: Lead[];
+  discarded: { row: number; email: string; reason: string }[];
+}
+
+export function parseCSVLeads(csvText: string, config: ProductConfig, availableProducts: any[] = []): CSVParseResult {
   // Strip UTF-8 BOM if present
   const cleanText = csvText.replace(/^\uFEFF/, '').trim();
-  if (!cleanText) return [];
+  if (!cleanText) return { leads: [], discarded: [] };
+
+  const productKnowledge = availableProducts.find(p => p.product_id === config.product_id);
 
   const lines = cleanText.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return { leads: [], discarded: [] };
 
   const delimiter = detectDelimiter(lines[0]);
   const headers = splitCSVLine(lines[0], delimiter).map((h) =>
@@ -104,6 +119,7 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
   );
 
   const leads: Lead[] = [];
+  const discarded: { row: number; email: string; reason: string }[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -119,7 +135,6 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
     const getVal = (...keys: string[]): string => {
       for (const k of keys) {
         if (row[k] !== undefined && row[k] !== '') return row[k];
-        // check partial keys
         const foundKey = Object.keys(row).find(
           (rk) => rk === k || rk.includes(k) || k.includes(rk)
         );
@@ -132,9 +147,17 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
       getVal('name', 'nome', 'shop', 'store', 'azienda', 'company', 'creator', 'brand', 'titolo', 'contatto') ||
       `Contatto #${i}`;
 
-    const email = getVal('email', 'e-mail', 'mail', 'pec', 'indirizzo_email');
-    const platformRaw = getVal('platform', 'piattaforma', 'canale', 'channel', 'fonte', 'source') || 'Web';
+    const email = getVal('email', 'e-mail', 'mail', 'pec', 'indirizzo_email').toLowerCase().trim();
+    const contactRole = getVal('ruolo', 'role', 'posizione', 'qualifica', 'titolo', 'job');
+    
+    // Validazione immediata per scartaggio se email non valida
+    const emailQuality = validateEmailQuality(email);
+    if (emailQuality === 'Mancante' || (emailQuality === 'Sospetta' && !email.includes('@'))) {
+       discarded.push({ row: i + 1, email: email || 'N/A', reason: 'Email non valida o mancante' });
+       continue;
+    }
 
+    const platformRaw = getVal('platform', 'piattaforma', 'canale', 'channel', 'fonte', 'source') || 'Web';
     let platform: Platform = 'Web';
     const pLower = platformRaw.toLowerCase();
     if (pLower.includes('etsy')) platform = 'Etsy';
@@ -148,37 +171,13 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
     const notes = getVal('notes', 'note', 'descrizione', 'description', 'bio', 'dettagli') || 'Importato da CSV';
     const url = getVal('url', 'website', 'sito', 'link', 'shopurl', 'profilo') || '';
 
-    // Check all possible aliases for merchandise category / industry
     const rawIndustry = getVal(
-      'categoria_merceologica',
-      'categoria merceologica',
-      'settore_merceologico',
-      'settore merceologico',
-      'merceologia',
-      'categoria',
-      'category',
-      'settore',
-      'industry',
-      'nicchia',
-      'niche',
-      'ramo',
-      'verticale',
-      'prodotti',
-      'products',
-      'tipo_merce',
-      'tipologia',
-      'mercato',
-      'attività',
-      'attivita'
+      'categoria_merceologica', 'categoria merceologica', 'settore_merceologico', 'settore merceologico',
+      'merceologia', 'categoria', 'category', 'settore', 'industry', 'nicchia', 'niche', 'ramo',
+      'verticale', 'prodotti', 'products', 'tipo_merce', 'tipologia', 'mercato', 'attività', 'attivita'
     );
 
-    const industry = detectMerchandiseCategory(
-      shopName,
-      notes,
-      rawIndustry,
-      url,
-      config?.targetMerchandiseCategory
-    );
+    const industry = detectMerchandiseCategory(shopName, notes, rawIndustry, url, config?.targetMerchandiseCategory);
 
     const langRaw = getVal('language', 'lingua', 'lang').toLowerCase();
     let language: Language = 'it';
@@ -188,10 +187,7 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
       language = 'de';
     } else if (langRaw.includes('fr') || langRaw.includes('fran')) {
       language = 'fr';
-    } else if (langRaw.includes('it') || langRaw.includes('ita')) {
-      language = 'it';
     } else {
-      // Canton cultural adaptation for language:
       const cUpper = canton.toUpperCase().trim();
       if (['ZH', 'BE', 'BS', 'BL', 'LU', 'SG', 'AG', 'SO', 'SH', 'TG', 'ZG', 'GR', 'AR', 'AI', 'GL', 'NW', 'OW', 'SZ', 'UR'].includes(cUpper)) {
         language = 'de';
@@ -202,14 +198,11 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
       }
     }
 
-    // Step 1: Anti-Spam email validation
-    const emailQuality = validateEmailQuality(email);
-
-    // Step 2: Tone of voice calculation
     const toneOfVoice = determineToneOfVoice(industry);
-
-    const productsCount = parseInt(getVal('products', 'prodotti', 'articoli', 'items') || '10', 10) || 10;
-    const reviewsCount = parseInt(getVal('reviews', 'recensioni', 'feedback') || '15', 10) || 15;
+    
+    // Mock signal generation if not in CSV
+    const reviewsCount = parseInt(getVal('reviews', 'recensioni', 'feedback') || '0', 10) || (Math.floor(Math.random() * 100) + 5);
+    const productsCount = parseInt(getVal('products', 'prodotti', 'articoli', 'items') || '0', 10) || (Math.floor(Math.random() * 20));
     const monthsCount = parseInt(getVal('months', 'mesi', 'attivita') || '12', 10) || 12;
     const revenueEst = getVal('revenue', 'fatturato', 'vendite') || 'Non specificato';
 
@@ -225,6 +218,8 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
       city,
       canton,
       industry,
+      contactRole,
+      product_id: config.product_id || 'legacy',
       businessSignals: {
         numProducts: productsCount,
         numReviews: reviewsCount,
@@ -238,15 +233,28 @@ export function parseCSVLeads(csvText: string, config: ProductConfig): Lead[] {
       selected: true,
     };
 
-    const leadScore = calculateLeadScore(baseLead, config);
-
-    leads.push({
-      ...baseLead,
-      leadScore,
+    const scoreResult = calculateLeadScore(baseLead, config, productKnowledge);
+    leads.push({ 
+      ...baseLead, 
+      leadScore: scoreResult.score,
+      scoreReasoning: scoreResult.reasoning 
     } as Lead);
   }
 
-  return leads;
+  // Deduplica per email
+  const uniqueLeads = new Map<string, Lead>();
+  leads.forEach(l => {
+    if (!uniqueLeads.has(l.email!)) {
+      uniqueLeads.set(l.email!, l);
+    } else {
+      discarded.push({ row: 0, email: l.email!, reason: 'Duplicato' });
+    }
+  });
+
+  return {
+    leads: Array.from(uniqueLeads.values()),
+    discarded
+  };
 }
 
 /**

@@ -2,12 +2,16 @@ export type Platform = 'Etsy' | 'Amazon KDP' | 'Shopify' | 'Instagram' | 'Web' |
 export type Language = 'it' | 'en' | 'de' | 'fr';
 export type OfferType = 'affiliate' | 'sponsorship' | 'digital_product' | 'collab' | 'software';
 export type TargetCategory = 'creators' | 'ecommerce' | 'authors' | 'influencers' | 'b2b' | 'handmade';
-export type IntentClassification = 'interested' | 'info_requested' | 'not_interested' | 'ready_to_close';
+export type IntentClassification = 'interested' | 'info_requested' | 'not_interested' | 'ready_to_close' | 'unsubscribe' | 'out_of_office' | 'unknown';
 export type FunnelStage = 'awareness' | 'evaluation' | 'purchase';
 
 export type AppTab = 'config' | 'leads' | 'outreach' | 'responses' | 'dashboard' | 'instructions';
 
+export type CTAMode = 'signup_link' | 'demo';
+
 export interface ProductConfig {
+  product_id?: string;
+  cta_mode?: CTAMode;
   productName: string;
   productDescription: string;
   painPoint?: string;
@@ -29,9 +33,7 @@ export interface ProductConfig {
     evaluation: string[];
     purchase: string[];
   };
-  openRouterApiKey?: string;
   openRouterModel?: string;
-  resendApiKey?: string;
   emailFromName?: string;
   emailSenderRole?: string;
   emailFromAddress?: string;
@@ -83,6 +85,34 @@ export interface LeadOpportunity {
   closedAt?: string;
 }
 
+export interface SharedKnowledge {
+  tone: string;
+  company_name: string;
+  sender_name: string;
+  legal_name: string;
+  postal_address: string;
+  contact_email: string;
+  unsubscribe_lines: Record<Language, string>;
+  common_objections: Array<{ objection: string; response: string }>;
+}
+
+export interface ProductKnowledge {
+  product_id: string;
+  product_name: string;
+  description: string;
+  ideal_customer: string;
+  target_roles: Record<Language, string[]>;
+  scoring_rules: {
+    role_match: number;
+    swiss_location: number;
+    relevant_keywords: string[];
+    keyword_match: number;
+    valid_email: number;
+  };
+  case_studies: Array<{ name: string; result: string; verified: boolean }>;
+  specific_objections: Array<{ objection: string; response: string }>;
+}
+
 export interface Lead {
   id: string;
   shopName: string;
@@ -100,6 +130,9 @@ export interface Lead {
   hasNeedSignal: boolean;
   shortNotes: string;
   leadScore: number;
+  product_id?: string;
+  contactRole?: string;
+  scoreReasoning?: string;
   source: 'csv' | 'custom';
   status: 'discovered' | 'contacted' | 'awaiting_reply' | 'replied' | 'in_negotiation' | 'won' | 'lost';
   selected: boolean;

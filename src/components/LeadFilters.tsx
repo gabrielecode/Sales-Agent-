@@ -9,6 +9,8 @@ import {
   SlidersHorizontal,
   RotateCcw,
   X,
+  Cloud,
+  RefreshCw,
 } from 'lucide-react';
 
 interface LeadFiltersProps {
@@ -30,6 +32,9 @@ interface LeadFiltersProps {
   onOpenCSVModal: () => void;
   onOpenClearModal: () => void;
   onDeleteSelected: () => void;
+  isSyncing?: boolean;
+  onSyncCloud?: () => void;
+  onRouteLeads?: () => void;
 }
 
 export const LeadFilters: React.FC<LeadFiltersProps> = ({
@@ -50,6 +55,9 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
   onOpenCSVModal,
   onOpenClearModal,
   onDeleteSelected,
+  isSyncing = false,
+  onSyncCloud,
+  onRouteLeads,
 }) => {
   const [showFiltersMobile, setShowFiltersMobile] = useState<boolean>(false);
 
@@ -154,6 +162,35 @@ export const LeadFilters: React.FC<LeadFiltersProps> = ({
 
         {/* Data Management Buttons */}
         <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+          {onSyncCloud && (
+            <button
+              type="button"
+              onClick={onSyncCloud}
+              disabled={isSyncing}
+              className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border ${
+                isSyncing 
+                  ? 'bg-slate-50 text-slate-400 border-slate-200' 
+                  : 'bg-white hover:bg-slate-50 text-indigo-600 border-indigo-200 shadow-xs'
+              }`}
+              title="Sincronizza i lead con il database cloud (Supabase)"
+            >
+              {isSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5" />}
+              <span>{isSyncing ? 'Sincronizzazione...' : 'Cloud Sync'}</span>
+            </button>
+          )}
+
+          {onRouteLeads && (
+            <button
+              type="button"
+              onClick={onRouteLeads}
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-[11px] sm:text-xs font-semibold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              title="Assegna automaticamente ogni lead al prodotto più adatto usando l'AI"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Routing AI</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenCSVModal}

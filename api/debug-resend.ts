@@ -1,5 +1,6 @@
 export default async function handler(req: any, res: any) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const appUrl = process.env.APP_URL || "*";
+  res.setHeader("Access-Control-Allow-Origin", appUrl);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
@@ -7,21 +8,30 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
+  // Auth Check
+  const token = process.env.APP_ACCESS_TOKEN;
+  if (token) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || authHeader !== `Bearer ${token}`) {
+      return res.status(401).json({ error: "Accesso non autorizzato" });
+    }
+  }
+
+  // Debug Check
+  const enableDebug = process.env.ENABLE_DEBUG === "true" || process.env.NODE_ENV !== "production";
+  if (!enableDebug) {
+    return res.status(403).json({ error: "Debug endpoint disabilitato in produzione." });
+  }
+
   try {
     const body = req.body || {};
     const query = req.query || {};
 
-    // Get provided key or server key
-    const rawKey = (
-      body.apiKey ||
-      query.apiKey ||
-      body.config?.resendApiKey ||
-      process.env.RESEND_API_KEY ||
-      ""
-    ).toString();
+    // Solo chiavi da environment, non accettare chiavi arbitrarie dal body per sicurezza
+    const rawKey = (process.env.RESEND_API_KEY || "").toString();
 
     const cleanKey = rawKey.replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "").trim();
-    const isFromClient = Boolean(body.apiKey || query.apiKey || body.config?.resendApiKey);
+    const isFromClient = false; // Forza false poiché usiamo solo env
 
     if (!cleanKey) {
       return res.status(200).json({

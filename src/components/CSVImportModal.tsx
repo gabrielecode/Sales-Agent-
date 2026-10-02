@@ -19,6 +19,7 @@ interface CSVImportModalProps {
   config: ProductConfig;
   currentLeadsCount: number;
   onImport: (newLeads: Lead[], replace: boolean) => void;
+  availableProducts?: any[];
 }
 
 export const CSVImportModal: React.FC<CSVImportModalProps> = ({
@@ -27,11 +28,13 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   config,
   currentLeadsCount,
   onImport,
+  availableProducts = [],
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState<string>('');
   const [parsedLeads, setParsedLeads] = useState<Lead[]>([]);
+  const [discardedLeads, setDiscardedLeads] = useState<any[]>([]);
   const [replaceMode, setReplaceMode] = useState<boolean>(true); // default to replace to help wipe fake data
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [isManualPaste, setIsManualPaste] = useState<boolean>(false);
@@ -42,17 +45,20 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   const processText = (text: string, fileName?: string) => {
     setErrorMsg('');
     try {
-      const parsed = parseCSVLeads(text, config);
-      if (parsed.length === 0) {
+      const result = parseCSVLeads(text, config, availableProducts);
+      if (result.leads.length === 0 && result.discarded.length === 0) {
         setErrorMsg('Nessun contatto valido trovato nel CSV. Verifica l’intestazione delle colonne (es. Nome, Email, ecc.).');
         setParsedLeads([]);
+        setDiscardedLeads([]);
         return;
       }
       setCsvContent(text);
-      setParsedLeads(parsed);
+      setParsedLeads(result.leads);
+      setDiscardedLeads(result.discarded);
     } catch (err: any) {
       setErrorMsg(`Errore nella lettura del file: ${err?.message || 'Formato non supportato'}`);
       setParsedLeads([]);
+      setDiscardedLeads([]);
     }
   };
 
@@ -121,6 +127,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
     setFile(null);
     setCsvContent('');
     setParsedLeads([]);
+    setDiscardedLeads([]);
     setErrorMsg('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -315,6 +322,29 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* List of Discarded Contacts */}
+          {discardedLeads.length > 0 && (
+            <div className="space-y-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="flex items-center gap-2 text-amber-800">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-xs font-bold">
+                  Contatti Scartati ({discardedLeads.length})
+                </span>
+              </div>
+              <div className="max-h-32 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                {discardedLeads.map((d, i) => (
+                  <div key={i} className="flex items-center justify-between text-[11px] py-1 border-b border-amber-200/50 last:border-0">
+                    <span className="text-slate-600 truncate max-w-[200px]">{d.email}</span>
+                    <span className="text-amber-700 font-medium italic">{d.reason}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-amber-600 mt-1">
+                Questi contatti sono stati esclusi perché duplicati o con email palesemente non valida.
+              </p>
             </div>
           )}
 

@@ -1,10 +1,20 @@
 export default function handler(req: any, res: any) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const appUrl = process.env.APP_URL || "*";
+  res.setHeader("Access-Control-Allow-Origin", appUrl);
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
+  }
+
+  // Auth Check
+  const token = process.env.APP_ACCESS_TOKEN;
+  if (token) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || authHeader !== `Bearer ${token}`) {
+      return res.status(401).json({ error: "Accesso non autorizzato" });
+    }
   }
 
   const rawResendKey = (process.env.RESEND_API_KEY || "").replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "").trim();

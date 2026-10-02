@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './api';
 import { ProductConfig } from '../types';
 
 export interface SendEmailResponse {
@@ -14,7 +15,7 @@ export async function sendOutreachEmail(params: {
   config: ProductConfig;
 }): Promise<SendEmailResponse> {
   try {
-    const res = await fetch('/api/send-email', {
+    const res = await authenticatedFetch('/api/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

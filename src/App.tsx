@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ProductConfig, Lead, AppTab } from './types';
+import { authenticatedFetch, getAccessToken, setAccessToken } from './lib/api';
 import { DEFAULT_CONFIG, parseCSVLeads, simulateSimulatedResponses } from './utils/mockData';
 import { validateEmailQuality, determineToneOfVoice } from './lib/csvParser';
 import { generateLocalMessageFallback } from './lib/messageFallback';
@@ -33,11 +34,22 @@ import {
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('leads');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [accessToken, setToken] = useState<string | null>(getAccessToken());
+
   const [config, setConfig] = useState<ProductConfig>(() => {
     try {
       const saved = localStorage.getItem('AFFILIATE_AGENT_CONFIG');
       if (saved) {
         const parsed = JSON.parse(saved);
+        
+        // MIGRATION: Rimuovi chiavi API salvate precedentemente in locale per sicurezza
+        let needsUpdate = false;
+        if (parsed.resendApiKey) { delete parsed.resendApiKey; needsUpdate = true; }
+        if (parsed.openRouterApiKey) { delete parsed.openRouterApiKey; needsUpdate = true; }
+        if (needsUpdate) {
+          localStorage.setItem('AFFILIATE_AGENT_CONFIG', JSON.stringify(parsed));
+        }
+
         if (!parsed.dailyOutreachLimit || parsed.dailyOutreachLimit === 25) {
           parsed.dailyOutreachLimit = 100;
         }
@@ -73,11 +85,57 @@ export default function App() {
   const [isCSVModalOpen, setIsCSVModalOpen] = useState<boolean>(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  const fetchLeadsFromServer = async () => {
+    if (!accessToken) return;
+    setIsSyncing(true);
+    try {
+      const res = await authenticatedFetch('/api/leads');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.leads && data.leads.length > 0) {
+          setLeads(data.leads);
+          showToast(`Sincronizzati ${data.leads.length} contatti dal cloud.`);
+        }
+      }
+    } catch (e) {
+      console.error("Errore fetch cloud leads:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const syncLeadsToServer = async (leadsToSync: Lead[]) => {
+    if (!accessToken || leadsToSync.length === 0) return;
+    try {
+      await authenticatedFetch('/api/leads/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leads: leadsToSync }),
+      });
+    } catch (e) {
+      console.error("Errore sync cloud leads:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (accessToken) {
+      fetchLeadsFromServer();
+      
+      // Fetch available products for scoring and config
+      authenticatedFetch('/api/knowledge/products')
+        .then(res => res.json())
+        .then(data => setAvailableProducts(data.products || []))
+        .catch(e => console.error("Errore fetch products in App:", e));
+    }
+  }, [accessToken]);
 
   // Filters
   const [platformFilter, setPlatformFilter] = useState<string>('all');
@@ -95,6 +153,10 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('AFFILIATE_AGENT_LEADS', JSON.stringify(leads));
+      // Sync to server on change (debounced or simple)
+      if (leads.length > 0) {
+        syncLeadsToServer(leads);
+      }
     } catch (e) {}
   }, [leads]);
 
@@ -150,10 +212,16 @@ export default function App() {
   };
 
   const handleUploadCSV = (csvText: string, replace = false) => {
-    const parsed = parseCSVLeads(csvText, config);
-    if (parsed.length > 0) {
-      setLeads((prev) => (replace ? parsed : [...parsed, ...prev]));
-      showToast(`${parsed.length} contatti importati dal CSV!`);
+    const result = parseCSVLeads(csvText, config, availableProducts);
+    if (result.leads.length > 0) {
+      setLeads((prev) => (replace ? result.leads : [...result.leads, ...prev]));
+      if (result.discarded.length > 0) {
+        showToast(`${result.leads.length} importati, ${result.discarded.length} scartati.`);
+      } else {
+        showToast(`${result.leads.length} contatti importati dal CSV!`);
+      }
+    } else if (result.discarded.length > 0) {
+      showToast(`Importazione fallita: ${result.discarded.length} contatti scartati.`);
     }
   };
 
@@ -162,6 +230,42 @@ export default function App() {
       prev.map((l) => (l.id === id ? { ...l, selected: true } : l))
     );
     setActiveTab('outreach');
+  };
+
+  const handleRouteLeads = async () => {
+    const leadsToRoute = leads.filter(l => l.status === 'discovered' && (!l.product_id || l.product_id === 'legacy'));
+    if (leadsToRoute.length === 0) {
+      showToast("Nessun nuovo lead da assegnare.");
+      return;
+    }
+
+    showToast(`Assegnazione intelligente di ${leadsToRoute.length} lead in corso...`);
+    
+    const { routeLeadSmart } = await import('./lib/router');
+    
+    let routedCount = 0;
+    const updatedLeads = [...leads];
+
+    for (const leadToRoute of leadsToRoute) {
+       try {
+         const result = await routeLeadSmart(leadToRoute, availableProducts);
+         const idx = updatedLeads.findIndex(l => l.id === leadToRoute.id);
+         if (idx !== -1) {
+           updatedLeads[idx] = {
+             ...updatedLeads[idx],
+             product_id: result.product_id === 'none' ? updatedLeads[idx].product_id : result.product_id,
+             status: result.product_id === 'none' ? 'lost' : updatedLeads[idx].status,
+             shortNotes: `${updatedLeads[idx].shortNotes}\n[Routing AI: ${result.reason}]`
+           };
+           routedCount++;
+         }
+       } catch (e) {
+         console.error("Errore routing lead:", leadToRoute.shopName, e);
+       }
+    }
+
+    setLeads(updatedLeads);
+    showToast(`Completato: ${routedCount} lead assegnati ai prodotti corretti.`);
   };
 
   const handleUpdateLeadMessage = (
@@ -288,6 +392,49 @@ export default function App() {
       )
     );
   };
+
+  if (!accessToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center text-white mb-4 shadow-lg">
+              <Workflow className="w-6 h-6" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900">Accesso Protetto</h1>
+            <p className="text-slate-500 text-sm mt-1 text-center">Inserisci l'Access Token dell'applicazione per sbloccare la dashboard</p>
+          </div>
+          
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const val = (formData.get('token') as string || '').trim();
+            if (val) {
+              setAccessToken(val);
+              setToken(val);
+            }
+          }} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Access Token</label>
+              <input 
+                name="token" 
+                type="password" 
+                required
+                placeholder="Inserisci il token..." 
+                className="w-full px-4 py-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition text-center font-mono tracking-widest"
+              />
+            </div>
+            <button type="submit" className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold shadow-lg transition transform active:scale-[0.98]">
+              Sblocca Dashboard
+            </button>
+            <p className="text-[10px] text-slate-400 text-center mt-4">
+              Il token è definito nella variabile d'ambiente <code>APP_ACCESS_TOKEN</code> sul server.
+            </p>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   // Filtered leads
   const filteredLeads = leads.filter((lead) => {
@@ -720,6 +867,9 @@ export default function App() {
                   onOpenCSVModal={() => setIsCSVModalOpen(true)}
                   onOpenClearModal={() => setIsClearModalOpen(true)}
                   onDeleteSelected={handleDeleteSelectedLeads}
+                  isSyncing={isSyncing}
+                  onSyncCloud={fetchLeadsFromServer}
+                  onRouteLeads={handleRouteLeads}
                 />
 
                 <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden flex flex-col">
@@ -840,6 +990,7 @@ export default function App() {
         config={config}
         currentLeadsCount={leads.length}
         onImport={handleImportCSVFromModal}
+        availableProducts={availableProducts}
       />
 
       {/* Clear/Delete Data Confirmation Modal */}

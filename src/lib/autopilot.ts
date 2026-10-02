@@ -1,4 +1,5 @@
 import { Lead, ProductConfig } from '../types';
+import { authenticatedFetch } from './api';
 import { getDailySentCount, recordDailySentCount } from './quotaManager';
 
 export interface AutopilotRunResult {
@@ -30,7 +31,7 @@ export async function executeAutopilotRun(
   const dailySentCount = getDailySentCount();
 
   try {
-    const res = await fetch('/api/autopilot/run', {
+    const res = await authenticatedFetch('/api/autopilot/run', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
